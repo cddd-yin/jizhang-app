@@ -8,14 +8,19 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.rounded.Add
@@ -25,6 +30,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,11 +40,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
 import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.importer.CsvImporter
-import com.yang.jizhang.CategoryRules
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -44,6 +56,7 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent { JizhangTheme { AppRoot() } }
     }
@@ -63,12 +76,19 @@ private fun dayKey(millis: Long): Int {
     return c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** iOS 风格背景渐变 */
+private fun bgBrush(dark: Boolean): Brush = if (dark) {
+    Brush.verticalGradient(listOf(Color(0xFF050505), Color(0xFF101014), Color(0xFF0A0C0B)))
+} else {
+    Brush.verticalGradient(listOf(Color(0xFFE9F5EE), Color(0xFFF4F6F8), Color(0xFFEAF0F5)))
+}
+
 @Composable
 fun AppRoot() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dao = remember { (context.applicationContext as JizhangApp).db.txDao() }
+    val dark = isSystemInDarkTheme()
 
     val today = remember { Calendar.getInstance() }
     var year by rememberSaveable { mutableIntStateOf(today.get(Calendar.YEAR)) }
@@ -76,6 +96,8 @@ fun AppRoot() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TxEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
+
+    val hazeState = remember { HazeState() }
 
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
@@ -96,73 +118,42 @@ fun AppRoot() {
     val incomeTotal = txs.filter { it.isIncome }.sumOf { it.amountCents }
 
     Scaffold(
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = { Text("轻记账", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*")) }) {
-                        Icon(Icons.Rounded.UploadFile, contentDescription = "导入账单 CSV")
-                    }
-                }
-            )
+            GlassTopBar(hazeState, dark, onImport = {
+                picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
+            })
         },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
-                    icon = { Icon(Icons.AutoMirrored.Outlined.ReceiptLong, null) },
-                    label = { Text("明细") },
-                )
-                NavigationBarItem(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    icon = { Icon(Icons.Outlined.PieChart, null) },
-                    label = { Text("统计") },
-                )
-            }
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { adding = true },
-                icon = { Icon(Icons.Rounded.Add, null) },
-                text = { Text("记一笔") },
-            )
-        }
+        bottomBar = { GlassBottomBar(hazeState, dark, tab) { tab = it } },
+        floatingActionButton = { GlassFab(hazeState, dark) { adding = true } },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(bgBrush(dark))
+                .hazeSource(hazeState)
+        ) {
             if (!listenerEnabled(context)) {
-                Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "未开启通知监听，点此设置以实时记账",
-                            modifier = Modifier.weight(1f),
-                            fontSize = 13.sp,
-                        )
-                        TextButton(onClick = {
-                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        }) { Text("去开启") }
-                    }
+                SetupBanner {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 }
             }
-
-            MonthHeader(
-                year = year, month = month,
-                expense = expenseTotal, income = incomeTotal,
-                onPrev = {
-                    if (month == 1) { year--; month = 12 } else month--
-                },
-                onNext = {
-                    if (month == 12) { year++; month = 1 } else month++
-                },
-            )
-
             when (tab) {
-                0 -> TxList(txs = txs, onItemClick = { editing = it })
-                else -> StatsTab(txs = txs)
+                0 -> TxList(
+                    txs = txs,
+                    contentPad = pad,
+                    expense = expenseTotal,
+                    income = incomeTotal,
+                    year = year, month = month,
+                    onPrev = { if (month == 1) { year--; month = 12 } else month-- },
+                    onNext = { if (month == 12) { year++; month = 1 } else month++ },
+                    onItemClick = { editing = it },
+                )
+                else -> StatsTab(
+                    txs = txs,
+                    contentPad = pad,
+                )
             }
         }
     }
@@ -202,26 +193,142 @@ fun AppRoot() {
     }
 }
 
+/** iOS 超薄毛玻璃材质 */
 @Composable
-private fun MonthHeader(
+private fun glassStyle(dark: Boolean, container: Color? = null) =
+    HazeMaterials.thin(containerColor = container ?: if (dark) Color(0xFF1C1C1E) else Color.White)
+
+@Composable
+private fun GlassTopBar(hazeState: HazeState, dark: Boolean, onImport: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .hazeEffect(state = hazeState, style = glassStyle(dark))
+            .statusBarsPadding()
+            .height(54.dp)
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("轻记账", fontWeight = FontWeight.Bold, fontSize = 21.sp, modifier = Modifier.weight(1f))
+        IconButton(onClick = onImport) {
+            Icon(Icons.Rounded.UploadFile, contentDescription = "导入账单 CSV", tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun GlassBottomBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
+    val shape = RoundedCornerShape(26.dp)
+    Box(Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 14.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(shape)
+                .hazeEffect(state = hazeState, style = glassStyle(dark))
+                .border(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.55f), shape)
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlassTab("明细", Icons.AutoMirrored.Outlined.ReceiptLong, tab == 0) { onSelect(0) }
+            GlassTab("统计", Icons.Outlined.PieChart, tab == 1) { onSelect(1) }
+        }
+    }
+}
+
+@Composable
+private fun GlassTab(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick)
+            .padding(horizontal = 26.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = tint)
+        Spacer(Modifier.height(2.dp))
+        Text(label, fontSize = 11.sp, color = tint, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+    }
+}
+
+@Composable
+private fun GlassFab(hazeState: HazeState, dark: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        Modifier
+            .clip(shape)
+            .hazeEffect(state = hazeState, style = glassStyle(dark, MaterialTheme.colorScheme.primary))
+            .border(0.5.dp, Color.White.copy(alpha = 0.45f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Add, null, tint = Color.White)
+        Spacer(Modifier.width(5.dp))
+        Text("记一笔", color = Color.White, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun SetupBanner(onClick: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable(onClick = onClick),
+    ) {
+        Text(
+            "未开启通知监听，点此设置以实时记账",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+    }
+}
+
+/** 月份切换 + 汇总：半透明圆角卡片 */
+@Composable
+private fun MonthCard(
     year: Int, month: Int, expense: Long, income: Long,
     onPrev: () -> Unit, onNext: () -> Unit,
 ) {
-    Surface(tonalElevation = 1.dp) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
+    val dark = isSystemInDarkTheme()
+    val shape = RoundedCornerShape(22.dp)
+    Surface(
+        color = (if (dark) Color(0xFF1C1C1E) else Color.White).copy(alpha = 0.66f),
+        shape = shape,
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.7f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "上一月") }
-                Text("$year 年 $month 月", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "下一月") }
+                Text(
+                    "$year 年 $month 月",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("<", fontSize = 18.sp, modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onPrev() }
+                    .padding(horizontal = 12.dp, vertical = 2.dp))
+                Text(">", fontSize = 18.sp, modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onNext() }
+                    .padding(horizontal = 12.dp, vertical = 2.dp))
             }
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Spacer(Modifier.height(6.dp))
+            Row {
                 Column(Modifier.weight(1f)) {
                     Text("支出", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(fmtCents(expense), fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
                 Column(Modifier.weight(1f)) {
                     Text("收入", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmtCents(income), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(fmtCents(income), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -229,13 +336,14 @@ private fun MonthHeader(
 }
 
 @Composable
-fun TxList(txs: List<TxEntity>, onItemClick: (TxEntity) -> Unit) {
-    if (txs.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("本月暂无记录\n点击右下角「记一笔」开始", color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 24.sp)
-        }
-        return
-    }
+fun TxList(
+    txs: List<TxEntity>,
+    contentPad: PaddingValues,
+    expense: Long, income: Long,
+    year: Int, month: Int,
+    onPrev: () -> Unit, onNext: () -> Unit,
+    onItemClick: (TxEntity) -> Unit,
+) {
     val dayFormat = remember { SimpleDateFormat("M月d日 EEEE", Locale.CHINA) }
     val groups = remember(txs) {
         txs.groupBy { dayKey(it.time) }
@@ -250,51 +358,82 @@ fun TxList(txs: List<TxEntity>, onItemClick: (TxEntity) -> Unit) {
                 )
             }
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = contentPad.calculateTopPadding() + 6.dp,
+            bottom = contentPad.calculateBottomPadding() + 92.dp,
+        ),
+    ) {
+        item(key = "month_card") {
+            MonthCard(year, month, expense, income, onPrev, onNext)
+        }
+        if (txs.isEmpty()) {
+            item {
+                Text(
+                    "本月暂无记录\n点击右下角「记一笔」开始",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 24.sp,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 80.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
         groups.forEach { (label, list, sums) ->
-            item(key = "head_$label${list.first().id}") {
+            item(key = "head_${list.first().id}") {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                     if (sums.first > 0) Text("支 ${fmtCents(sums.first)}  ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (sums.second > 0) Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (sums.second > 0) Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                 }
             }
             items(list, key = { it.id }) { tx ->
                 TxRow(tx, onClick = { onItemClick(tx) })
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             }
         }
     }
 }
 
+/** iOS 列表卡片：半透明白/黑圆角 + 细描边 */
 @Composable
 private fun TxRow(tx: TxEntity, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val dark = isSystemInDarkTheme()
+    val shape = RoundedCornerShape(18.dp)
+    Surface(
+        color = (if (dark) Color(0xFF1C1C1E) else Color.White).copy(alpha = 0.72f),
+        shape = shape,
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.7f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        Text(CategoryRules.icon(tx.category), fontSize = 22.sp)
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+        Row(
+            Modifier
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(CategoryRules.icon(tx.category), fontSize = 21.sp)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    tx.note.ifBlank { tx.category },
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 15.sp,
+                )
+                Text(
+                    "${tx.category} · ${tx.source}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
-                tx.note.ifBlank { tx.category },
-                maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 15.sp,
-            )
-            Text(
-                "${tx.category} · ${tx.source}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                (if (tx.isIncome) "+" else "-") + fmtCents(tx.amountCents),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                color = if (tx.isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
         }
-        Text(
-            (if (tx.isIncome) "+" else "-") + fmtCents(tx.amountCents),
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = if (tx.isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
     }
 }
