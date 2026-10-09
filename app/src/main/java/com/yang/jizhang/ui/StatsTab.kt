@@ -24,9 +24,9 @@ import com.yang.jizhang.data.TxEntity
 @Composable
 fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues) {
     val dark = isSystemInDarkTheme()
-    val cardColor = (if (dark) Color(0xFF1C1C1E) else Color.White).copy(alpha = 0.72f)
+    val cardColor = (if (dark) Color(0xFF131A28) else Color.White).copy(alpha = 0.78f)
     val cardShape = RoundedCornerShape(22.dp)
-    val cardBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.7f))
+    val cardBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.8f))
 
     val expense = txs.filter { !it.isIncome }
     val expenseTotal = expense.sumOf { it.amountCents }
@@ -43,7 +43,7 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues) {
         contentPadding = PaddingValues(
             start = 16.dp, end = 16.dp,
             top = contentPad.calculateTopPadding() + 6.dp,
-            bottom = contentPad.calculateBottomPadding() + 92.dp,
+            bottom = contentPad.calculateBottomPadding() + 118.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

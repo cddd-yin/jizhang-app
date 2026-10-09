@@ -31,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -76,11 +77,11 @@ private fun dayKey(millis: Long): Int {
     return c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
 }
 
-/** iOS 风格背景渐变 */
+/** 蓝白背景渐变：云白 → 天蓝，暗色为深海军蓝 */
 private fun bgBrush(dark: Boolean): Brush = if (dark) {
-    Brush.verticalGradient(listOf(Color(0xFF050505), Color(0xFF101014), Color(0xFF0A0C0B)))
+    Brush.verticalGradient(listOf(Color(0xFF060A12), Color(0xFF0B1220), Color(0xFF080D18)))
 } else {
-    Brush.verticalGradient(listOf(Color(0xFFE9F5EE), Color(0xFFF4F6F8), Color(0xFFEAF0F5)))
+    Brush.verticalGradient(listOf(Color(0xFFFBFDFF), Color(0xFFEDF4FF), Color(0xFFE1ECFD)))
 }
 
 @Composable
@@ -209,7 +210,7 @@ private fun GlassTopBar(hazeState: HazeState, dark: Boolean, onImport: () -> Uni
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("轻记账", fontWeight = FontWeight.Bold, fontSize = 21.sp, modifier = Modifier.weight(1f))
+        Text("蓝鲸记账", fontWeight = FontWeight.Bold, fontSize = 21.sp, modifier = Modifier.weight(1f))
         IconButton(onClick = onImport) {
             Icon(Icons.Rounded.UploadFile, contentDescription = "导入账单 CSV", tint = MaterialTheme.colorScheme.primary)
         }
@@ -219,14 +220,15 @@ private fun GlassTopBar(hazeState: HazeState, dark: Boolean, onImport: () -> Uni
 @Composable
 private fun GlassBottomBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
-    Box(Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 14.dp)) {
+    Box(Modifier.fillMaxWidth().padding(start = 30.dp, end = 30.dp, bottom = 30.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(60.dp)
+                .height(62.dp)
+                .shadow(elevation = 18.dp, shape = shape, ambientColor = Color(0x332E6BE6), spotColor = Color(0x442E6BE6))
                 .clip(shape)
                 .hazeEffect(state = hazeState, style = glassStyle(dark))
-                .border(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.55f), shape)
+                .border(0.5.dp, Color.White.copy(alpha = if (dark) 0.12f else 0.65f), shape)
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
@@ -239,17 +241,21 @@ private fun GlassBottomBar(hazeState: HazeState, dark: Boolean, tab: Int, onSele
 
 @Composable
 private fun GlassTab(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
-    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
+    val tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    val pill = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+    Box(
         Modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(pill)
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick)
-            .padding(horizontal = 26.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = tint)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 11.sp, color = tint, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.height(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, fontSize = 13.sp, color = tint, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+        }
     }
 }
 
@@ -290,45 +296,54 @@ private fun SetupBanner(onClick: () -> Unit) {
     }
 }
 
-/** 月份切换 + 汇总：半透明圆角卡片 */
+/** 月份切换 + 汇总：蓝白半透明圆角卡片 */
 @Composable
 private fun MonthCard(
     year: Int, month: Int, expense: Long, income: Long,
     onPrev: () -> Unit, onNext: () -> Unit,
 ) {
     val dark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(24.dp)
     Surface(
-        color = (if (dark) Color(0xFF1C1C1E) else Color.White).copy(alpha = 0.66f),
+        color = (if (dark) Color(0xFF131A28) else Color.White).copy(alpha = 0.72f),
         shape = shape,
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.7f)),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.8f)),
+        shadowElevation = 8.dp,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "$year 年 $month 月",
                     fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
                     modifier = Modifier.weight(1f),
                 )
-                Text("<", fontSize = 18.sp, modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onPrev() }
-                    .padding(horizontal = 12.dp, vertical = 2.dp))
-                Text(">", fontSize = 18.sp, modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onNext() }
-                    .padding(horizontal = 12.dp, vertical = 2.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .clickable { onPrev() }
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .clickable { onNext() }
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
             Row {
                 Column(Modifier.weight(1f)) {
                     Text("支出", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmtCents(expense), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(fmtCents(expense), fontWeight = FontWeight.Bold, fontSize = 24.sp)
                 }
                 Column(Modifier.weight(1f)) {
                     Text("收入", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmtCents(income), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(fmtCents(income), fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -362,7 +377,7 @@ fun TxList(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             top = contentPad.calculateTopPadding() + 6.dp,
-            bottom = contentPad.calculateBottomPadding() + 92.dp,
+            bottom = contentPad.calculateBottomPadding() + 118.dp,
         ),
     ) {
         item(key = "month_card") {
@@ -397,15 +412,16 @@ fun TxList(
     }
 }
 
-/** iOS 列表卡片：半透明白/黑圆角 + 细描边 */
+/** 蓝白列表卡片：半透明白圆角 + 分类图标底座 */
 @Composable
 private fun TxRow(tx: TxEntity, onClick: () -> Unit) {
     val dark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     Surface(
-        color = (if (dark) Color(0xFF1C1C1E) else Color.White).copy(alpha = 0.72f),
+        color = (if (dark) Color(0xFF131A28) else Color.White).copy(alpha = 0.78f),
         shape = shape,
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.7f)),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.8f)),
+        shadowElevation = 4.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -416,11 +432,20 @@ private fun TxRow(tx: TxEntity, onClick: () -> Unit) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(CategoryRules.icon(tx.category), fontSize = 21.sp)
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = if (dark) 0.18f else 0.10f))
+                    .size(42.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(CategoryRules.icon(tx.category), fontSize = 20.sp)
+            }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     tx.note.ifBlank { tx.category },
                     maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "${tx.category} · ${tx.source}",
