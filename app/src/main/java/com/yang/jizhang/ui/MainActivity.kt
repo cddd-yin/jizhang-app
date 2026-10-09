@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ChevronLeft
-import androidx.compose.material.icons.automirrored.rounded.ChevronRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.PieChart
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.*
@@ -111,7 +111,7 @@ fun AppRoot() {
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
-                    icon = { Icon(Icons.Outlined.ReceiptLong, null) },
+                    icon = { Icon(Icons.AutoMirrored.Outlined.ReceiptLong, null) },
                     label = { Text("明细") },
                 )
                 NavigationBarItem(
@@ -210,9 +210,9 @@ private fun MonthHeader(
     Surface(tonalElevation = 1.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Rounded.ChevronLeft, "上一月") }
+                IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "上一月") }
                 Text("$year 年 $month 月", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Rounded.ChevronRight, "下一月") }
+                IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "下一月") }
             }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 Column(Modifier.weight(1f)) {
