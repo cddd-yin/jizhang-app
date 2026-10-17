@@ -1,6 +1,7 @@
 package com.yang.jizhang.ui
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -62,12 +63,12 @@ fun DashboardTab(
     ) {
         item(key = "head") {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PgHeadline1("账本", modifier = Modifier.weight(1f))
                 Text(
                     "$year 年 $month 月",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 10.dp),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
                 )
                 IosChevron("‹", onPrev)
                 Spacer(Modifier.width(4.dp))
@@ -76,10 +77,11 @@ fun DashboardTab(
         }
 
         item(key = "balance") {
-            Surface(
-                color = MaterialTheme.colorScheme.primary,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth(),
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(skyGradient()),
             ) {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
                     PgContentTitle("本月结余", color = Color.White.copy(alpha = 0.85f))
@@ -149,6 +151,7 @@ fun DashboardTab(
                 Surface(
                     color = iosCard(),
                     shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column {
@@ -179,6 +182,7 @@ private fun StatCard(label: String, cents: Long, valueColor: Color, modifier: Mo
     Surface(
         color = iosCard(),
         shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier,
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -202,6 +206,7 @@ private fun BudgetCard(budgetCents: Long, expenseTotal: Long, onClick: () -> Uni
     Surface(
         color = iosCard(),
         shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
         if (budgetCents <= 0) {

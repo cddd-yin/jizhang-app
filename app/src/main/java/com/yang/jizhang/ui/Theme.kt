@@ -8,6 +8,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -18,85 +19,103 @@ import androidx.compose.ui.unit.sp
 import com.yang.jizhang.R
 
 /**
- * 高级感主题：双层背景（页面 L2 / 卡片 L1）+ 靛蓝主色 + Lato/Sans 字体。
- * 配色与排版借鉴 wallee（wisnukurniawan/Compose-Expense，Apache-2.0）；
- * 金额语义色沿用其 Expense #FD3C4A / Income #00A86B。
+ * ZCode 风格主题 v2.4.0（设计 Token 提取自 ZCode 桌面应用 app.asar 的 Tailwind CSS）：
+ * - 品牌色：天蓝 sky（浅色 sky-400 #00BCFF / 深色 sky-500 #00A6F4）
+ * - 表面：中性灰阶分层（页面 background → 面板 panel → 卡片 card，细描边 outline）
+ * - 语义：收入绿 green-600 / 支出红 red-600（深色升一档）
+ * - 金额字体沿用 wallee 的 Lato+Sans（OFL 许可），保持展示级大字质量
  */
 
-// ── 主色板 ──
-val IndigoPrimary = Color(0xFF5B5FEF)      // 靛蓝紫：保留蓝系身份、更显高级
-val IndigoPrimaryDark = Color(0xFFA6A9FF)
-val IncomeGreen = Color(0xFF00A86B)
-val IncomeGreenDark = Color(0xFF30D158)
-val ExpenseRed = Color(0xFFFD3C4A)
-val ExpenseRedDark = Color(0xFFFF453A)
+// ── 品牌天蓝（ZCode --color-brand） ──
+val SkyBrand = Color(0xFF00BCFF)       // sky-400（浅色主色）
+val SkyBrandDark = Color(0xFF00A6F4)   // sky-500（深色主色）
+val SkyStrong = Color(0xFF0084D1)      // sky-600（渐变深端 / 深色渐变浅端）
+val SkyContainer = Color(0xFF052F4A)   // sky-950（深色容器）
+val SkyOnContainer = Color(0xFF74D4FF) // sky-300（深色容器文字）
 
-// 双层背景（wallee 分层思想：页面 L2 / 卡片 L1 / 填充 L2）
-private val LightPage = Color(0xFFFFFFFF)
-private val LightCard = Color(0xFFF7F7F7)
-private val LightFill = Color(0xFFF1F1F1)
-private val LightOn = Color(0xFF000000)
-private val LightSecondaryText = Color(0xFF6E6E73)
-private val LightError = Color(0xFFEA6D7E)
+// 主视觉渐变（结余大卡）：浅色亮蓝 / 深色深蓝
+val SkyGradientLight = listOf(Color(0xFF00A6F4), Color(0xFF00BCFF))
+val SkyGradientDark = listOf(Color(0xFF0084D1), Color(0xFF00A6F4))
 
-private val DarkPage = Color(0xFF20232F)
-private val DarkCard = Color(0xFF373945)
-private val DarkFill = Color(0xFF373945)
-private val DarkOn = Color(0xFFFFFFFF)
-private val DarkSecondaryText = Color(0xFFB8B9C0)
-private val DarkError = Color(0xFFFF8A99)
+// ── 语义色（ZCode success/destructive/warning） ──
+val IncomeGreen = Color(0xFF00A63E)      // green-600（浅色收入）
+val IncomeGreenDark = Color(0xFF00C950)  // green-500（深色收入）
+val ExpenseRed = Color(0xFFE7000B)       // red-600（浅色支出）
+val ExpenseRedDark = Color(0xFFFB2C36)   // red-500（深色支出）
+val WarnAmber = Color(0xFFD08700)        // yellow-600（浅色警告）
+val WarnAmberDark = Color(0xFFF0B100)    // yellow-500（深色警告）
+
+// ── 中性表面（ZCode neutral 灰阶） ──
+private val LightPage = Color(0xFFFAFAFA)     // neutral-50 页面
+private val LightPanel = Color(0xFFF5F5F5)    // neutral-100 面板/填充
+private val LightCard = Color(0xFFFFFFFF)     // 卡片/弹层
+private val LightOn = Color(0xFF404040)       // neutral-700 正文
+private val LightOnStrong = Color(0xFF0A0A0A) // neutral-950 主文本/反相按钮
+private val LightSubtle = Color(0xFF737373)   // neutral-500 次要文字
+private val LightBorder = Color(0xFFE6E6E6)   // 描边（neutral-950@10% 落在白底）
+private val LightBorderSoft = Color(0xFFF2F2F2)
+
+private val DarkPage = Color(0xFF171717)      // neutral-900 页面
+private val DarkPanel = Color(0xFF262626)     // neutral-800 面板/填充/卡片
+private val DarkDeep = Color(0xFF0A0A0A)      // neutral-950 最深（底栏/搜索）
+private val DarkCard = Color(0xFF262626)      // neutral-800 卡片
+private val DarkOn = Color(0xFFE5E5E5)        // neutral-200 正文
+private val DarkOnStrong = Color(0xFFFAFAFA)  // neutral-50 主文本/反相按钮
+private val DarkSubtle = Color(0xFFA1A1A1)    // 次要文字
+private val DarkBorder = Color(0xFF2E2E2E)    // 描边（neutral-50@10% 落在 #171717）
+private val DarkBorderSoft = Color(0xFF262626)
 
 private val LightColors = lightColorScheme(
-    primary = IndigoPrimary,
+    primary = SkyBrand,
     onPrimary = Color.White,
-    primaryContainer = IndigoPrimary,
+    primaryContainer = SkyBrand,
     onPrimaryContainer = Color.White,
     secondary = LightCard,
     onSecondary = LightOn,
     secondaryContainer = LightCard,
     onSecondaryContainer = LightOn,
-    tertiary = Color(0xFFFF9F0A),
+    tertiary = WarnAmber,
     onTertiary = Color.White,
     background = LightPage,
     onBackground = LightOn,
-    surface = LightPage,
+    surface = LightCard,
     onSurface = LightOn,
-    surfaceVariant = LightFill,
-    onSurfaceVariant = LightSecondaryText,
-    outline = Color(0xFFE4E4E7),
-    outlineVariant = Color(0xFFEDEDF0),
-    error = LightError,
+    surfaceVariant = LightPanel,
+    onSurfaceVariant = LightSubtle,
+    outline = LightBorder,
+    outlineVariant = LightBorderSoft,
+    error = ExpenseRed,
     onError = Color.White,
-    errorContainer = Color(0xFFFFE5E8),
-    onErrorContainer = Color(0xFF7A1E2A),
+    errorContainer = Color(0xFFFFECEC),
+    onErrorContainer = Color(0xFF7F1D1D),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = IndigoPrimaryDark,
-    onPrimary = Color(0xFF23236B),
-    primaryContainer = IndigoPrimaryDark,
-    onPrimaryContainer = Color(0xFF23236B),
+    primary = SkyBrandDark,
+    onPrimary = Color.White,
+    primaryContainer = SkyContainer,
+    onPrimaryContainer = SkyOnContainer,
     secondary = DarkCard,
     onSecondary = DarkOn,
     secondaryContainer = DarkCard,
     onSecondaryContainer = DarkOn,
-    tertiary = Color(0xFFFFB258),
-    onTertiary = Color(0xFF4A2C00),
+    tertiary = WarnAmberDark,
+    onTertiary = Color(0xFF3A2A00),
     background = DarkPage,
     onBackground = DarkOn,
-    surface = DarkPage,
+    surface = DarkCard,
     onSurface = DarkOn,
-    surfaceVariant = DarkFill,
-    onSurfaceVariant = DarkSecondaryText,
-    outline = Color(0xFF454854),
-    outlineVariant = Color(0xFF3A3D48),
-    error = DarkError,
-    onError = Color(0xFF4A0D14),
-    errorContainer = Color(0xFF5C2530),
-    onErrorContainer = Color(0xFFFFD9DE),
+    surfaceVariant = DarkPanel,
+    onSurfaceVariant = DarkSubtle,
+    outline = DarkBorder,
+    outlineVariant = DarkBorderSoft,
+    error = ExpenseRedDark,
+    onError = Color.White,
+    errorContainer = Color(0xFF4A1418),
+    onErrorContainer = Color(0xFFFFD9D9),
 )
 
-// ── 字体（与 wallee 同款：Lato 展示数字 + Sans 正文；Lato 为 OFL 许可） ──
+// ── 字体（Lato 展示数字 + Sans 正文，与 wallee 同款；Lato 为 OFL 许可） ──
 private val Sans = FontFamily(
     Font(R.font.sans_light, FontWeight.Light),
     Font(R.font.sans_regular, FontWeight.Normal),
@@ -122,9 +141,9 @@ val JzTypography = Typography(
 )
 
 val JzShapes = Shapes(
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
 )
 
 /** 收入语义色（随深浅色切换） */
@@ -134,6 +153,15 @@ fun incomeColor(): Color = if (isSystemInDarkTheme()) IncomeGreenDark else Incom
 /** 支出语义色（随深浅色切换） */
 @Composable
 fun expenseColor(): Color = if (isSystemInDarkTheme()) ExpenseRedDark else ExpenseRed
+
+/** 主视觉渐变（结余大卡背景，随深浅色切换） */
+@Composable
+fun skyGradient(): Brush =
+    if (isSystemInDarkTheme()) Brush.linearGradient(SkyGradientDark) else Brush.linearGradient(SkyGradientLight)
+
+/** 卡片描边色（随深浅色切换） */
+@Composable
+fun borderColor(): Color = MaterialTheme.colorScheme.outline
 
 @Composable
 fun JizhangTheme(

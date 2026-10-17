@@ -1,6 +1,8 @@
 package com.yang.jizhang.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,17 +28,35 @@ import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
 import java.util.Calendar
 
-/** 图表配色（靛蓝系高级色板，与主题一致） */
-private val chartColors = listOf(
-    Color(0xFF5B5FEF), Color(0xFF00A86B), Color(0xFFFF9F0A), Color(0xFFFD3C4A),
-    Color(0xFF7C4DFF), Color(0xFF00BCD4), Color(0xFFFF7043), Color(0xFF7986CB),
-)
+/** 图表配色（ZCode usage-chart 天蓝色板，随深浅色切换） */
+@Composable
+private fun zcodeChartColors(): List<Color> =
+    if (isSystemInDarkTheme()) {
+        listOf(
+            Color(0xFF00A6F4), // sky-500
+            Color(0xFF00D5BE), // teal-400
+            Color(0xFFA684FF), // violet-400
+            Color(0xFFFF637E), // rose-400
+            Color(0xFF7C86FF), // indigo-400
+            Color(0xFF00D3F2), // cyan-400
+        )
+    } else {
+        listOf(
+            Color(0xFF0084D1), // sky-600
+            Color(0xFF009689), // teal-600
+            Color(0xFF7F22FE), // violet-600
+            Color(0xFFFF2056), // rose-500
+            Color(0xFF615FFF), // indigo-500
+            Color(0xFF0092B8), // cyan-600
+        )
+    }
 
 /** 统计页：本月结余 + 近 6 个月支出柱状图 + 收入分类占比 + 本月支出分类 */
 @Composable
 fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: Int, month: Int) {
     val cardColor = iosCard()
-    val cardShape = RoundedCornerShape(16.dp)
+    val cardShape = MaterialTheme.shapes.medium
+    val chartColors = zcodeChartColors()
 
     val expense = txs.filter { !it.isIncome }
     val expenseTotal = expense.sumOf { it.amountCents }
@@ -110,7 +130,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "summary") {
-            Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                color = cardColor, shape = cardShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Column(Modifier.padding(18.dp)) {
                     Text("本月结余", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(2.dp))
@@ -138,7 +162,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
             )
         }
         item(key = "chart_card") {
-            Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                color = cardColor, shape = cardShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 if (expenseByMonth.all { it.value <= 0 }) {
                     Text(
                         "暂无支出记录",
@@ -169,7 +197,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
         }
         if (incomeTop.isEmpty()) {
             item {
-                Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    color = cardColor, shape = cardShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(
                         "暂无收入记录",
                         fontSize = 15.sp,
@@ -181,7 +213,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
             }
         } else {
             item(key = "income_card") {
-                Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    color = cardColor, shape = cardShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Row(
                         Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -231,7 +267,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
         }
         if (byCategory.isEmpty()) {
             item {
-                Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    color = cardColor, shape = cardShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(
                         "暂无支出记录",
                         fontSize = 15.sp,
@@ -244,7 +284,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
         }
         if (byCategory.isNotEmpty()) {
             item(key = "cat_card") {
-                Surface(color = cardColor, shape = cardShape, modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    color = cardColor, shape = cardShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Column {
                         byCategory.forEachIndexed { index, (cat, cents, count) ->
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {

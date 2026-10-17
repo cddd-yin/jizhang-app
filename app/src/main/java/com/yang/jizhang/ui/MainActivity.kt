@@ -13,10 +13,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +38,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,10 +59,6 @@ import com.yang.jizhang.notify.PendingConfirmStore
 import com.yang.jizhang.notify.keepalive.KeepAliveService
 import com.yang.jizhang.notify.keepalive.ListenerStatus
 import com.yang.jizhang.util.CsvExporter
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -95,7 +93,6 @@ fun AppRoot() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dao = remember { (context.applicationContext as JizhangApp).db.txDao() }
-    val dark = isSystemInDarkTheme()
 
     val today = remember { Calendar.getInstance() }
     var year by rememberSaveable { mutableIntStateOf(today.get(Calendar.YEAR)) }
@@ -103,8 +100,6 @@ fun AppRoot() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TxEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
-
-    val hazeState = remember { HazeState() }
 
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
@@ -180,8 +175,6 @@ fun AppRoot() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             IosTopBar(
-                hazeState = hazeState,
-                dark = dark,
                 tab = tab,
                 searchQuery = searchQuery,
                 onSearchChange = { searchQuery = it },
@@ -193,13 +186,12 @@ fun AppRoot() {
                 onSettings = { showGuide = true },
             )
         },
-        bottomBar = { IosTabBar(hazeState, dark, tab) { tab = it } },
+        bottomBar = { IosTabBar(tab) { tab = it } },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
-                .background(iosBackground())
-                .hazeSource(hazeState),
+                .background(iosBackground()),
         ) {
             // 监听状态横幅：未开启 → 引导；已断开 → 提示重连；正常 → 静默
             when (listenerState.value) {
@@ -350,16 +342,9 @@ fun AppRoot() {
     }
 }
 
-/** iOS 毛玻璃材质 */
-@Composable
-private fun glassStyle(dark: Boolean, container: Color? = null) =
-    HazeMaterials.thin(containerColor = container ?: if (dark) Color(0xFF1C1C1E) else Color.White)
-
-/** 顶栏：每页大标题 + 右侧操作（明细页有 + / 导入 / 导出 / 设置；首页与统计页仅 + / 设置）+ 明细页搜索框 */
+/** 顶栏：ZCode 风格——实底中性表面 + 底部细描边，紧凑标题（20sp Semibold）+ 右侧操作 */
 @Composable
 private fun IosTopBar(
-    hazeState: HazeState,
-    dark: Boolean,
     tab: Int,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
@@ -368,14 +353,26 @@ private fun IosTopBar(
     onExport: () -> Unit,
     onSettings: () -> Unit,
 ) {
+    val outline = MaterialTheme.colorScheme.outline
     Column(
         Modifier
             .fillMaxWidth()
-            .hazeEffect(state = hazeState, style = glassStyle(dark))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp)
+            .then(
+                Modifier.drawBehind {
+                    val stroke = 0.5.dp.toPx()
+                    drawLine(
+                        color = outline,
+                        start = Offset(0f, size.height - stroke / 2),
+                        end = Offset(size.width, size.height - stroke / 2),
+                        strokeWidth = stroke,
+                    )
+                }
+            ),
     ) {
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 when (tab) {
@@ -383,9 +380,9 @@ private fun IosTopBar(
                     1 -> "账单"
                     else -> "统计"
                 },
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.2).sp,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onAdd) {
@@ -393,7 +390,7 @@ private fun IosTopBar(
                     Icons.Rounded.Add,
                     contentDescription = "记一笔",
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
             if (tab == 1) {
@@ -402,7 +399,7 @@ private fun IosTopBar(
                         Icons.Rounded.UploadFile,
                         contentDescription = "导入账单 CSV",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
                 IconButton(onClick = onExport) {
@@ -410,7 +407,7 @@ private fun IosTopBar(
                         Icons.Outlined.IosShare,
                         contentDescription = "导出账单 CSV",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -418,31 +415,31 @@ private fun IosTopBar(
                 Icon(
                     Icons.Outlined.Settings,
                     contentDescription = "自动记账设置",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
                 )
             }
         }
         if (tab == 1) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             IosSearchBar(
                 value = searchQuery,
                 onValueChange = onSearchChange,
                 placeholder = "搜索备注 / 分类 / 来源",
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
         } else {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
-/** iOS 风格搜索框 */
+/** ZCode 风格搜索框：填充面 + 圆角 */
 @Composable
 private fun IosSearchBar(value: String, onValueChange: (String) -> Unit, placeholder: String) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -511,18 +508,26 @@ private fun handleExportResult(context: android.content.Context, uri: Uri?) {
     }
 }
 
-/** iOS 底部 Tab Bar：全宽毛玻璃 + 极细分割线，三页：首页 / 明细 / 统计 */
+/** ZCode 风格底部 Tab Bar：实底中性表面 + 极细顶部分割线，选中项天蓝高亮 */
 @Composable
-private fun IosTabBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
+private fun IosTabBar(tab: Int, onSelect: (Int) -> Unit) {
+    val outline = MaterialTheme.colorScheme.outline
     Column(
         Modifier
             .fillMaxWidth()
-            .hazeEffect(state = hazeState, style = glassStyle(dark)),
+            .background(MaterialTheme.colorScheme.background)
+            .then(
+                Modifier.drawBehind {
+                    val stroke = 0.5.dp.toPx()
+                    drawLine(
+                        color = outline,
+                        start = Offset(0f, stroke / 2),
+                        end = Offset(size.width, stroke / 2),
+                        strokeWidth = stroke,
+                    )
+                }
+            ),
     ) {
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-        )
         Row(
             Modifier
                 .fillMaxWidth()
@@ -665,7 +670,8 @@ private fun MonthCard(
     val card = iosCard()
     Surface(
         color = card,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -797,7 +803,8 @@ fun TxList(
             item(key = "group_${list.first().id}") {
                 Surface(
                     color = iosCard(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 ) {
                     Column {
