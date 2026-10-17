@@ -1,21 +1,78 @@
 package com.yang.jizhang.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.data.TxEntity
 
 /**
- * 新增 / 编辑交易弹窗。
+ * iOS 分段控件（支出 / 收入）。
+ */
+@Composable
+fun IosSegmented(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(9.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
+            .padding(2.dp),
+    ) {
+        options.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(7.dp))
+                    .then(
+                        if (selected) Modifier
+                            .shadow(1.5.dp, RoundedCornerShape(7.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                        else Modifier
+                    )
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onSelect(index) }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 新增 / 编辑交易弹窗（iOS Alert 风格）。
  * [tx] 为 null 时是新增，否则编辑（可删除）。
  */
 @Composable
@@ -36,22 +93,24 @@ fun TxDialog(
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text(if (tx == null) "记一笔" else "编辑记录" + (if (tx.source != com.yang.jizhang.data.Source.MANUAL) "（${tx.source}）" else "")) },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Text(
+                if (tx == null) "记一笔" else "编辑记录" + (if (tx.source != com.yang.jizhang.data.Source.MANUAL) "（${tx.source}）" else ""),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+            )
+        },
         text = {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(
-                        selected = !isIncome,
-                        onClick = { isIncome = false },
-                        label = { Text("支出") },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(
-                        selected = isIncome,
-                        onClick = { isIncome = true },
-                        label = { Text("收入") },
-                    )
-                }
+                IosSegmented(
+                    options = listOf("支出", "收入"),
+                    selectedIndex = if (isIncome) 1 else 0,
+                    onSelect = { isIncome = it == 1 },
+                )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = amountText,
@@ -63,18 +122,34 @@ fun TxDialog(
                     label = { Text("金额（元）") },
                     prefix = { Text("¥") },
                     singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
+                Text("分类", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
                 Row(Modifier.horizontalScroll(rememberScrollState())) {
                     CategoryRules.ALL_CATEGORIES.forEach { c ->
-                        FilterChip(
-                            selected = category == c,
-                            onClick = { category = c },
-                            label = { Text("${CategoryRules.icon(c)} $c", fontSize = 12.sp) },
-                            modifier = Modifier.padding(end = 6.dp),
-                        )
+                        val selected = category == c
+                        Box(
+                            Modifier
+                                .padding(end = 6.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                )
+                                .clickable { category = c }
+                                .padding(horizontal = 11.dp, vertical = 7.dp),
+                        ) {
+                            Text(
+                                "${CategoryRules.icon(c)} $c",
+                                fontSize = 12.sp,
+                                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -83,13 +158,14 @@ fun TxDialog(
                     onValueChange = { if (it.length <= 40) note = it },
                     label = { Text("备注") },
                     singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
             TextButton(enabled = valid, onClick = { onSave(amountCents, isIncome, category, note.trim()) }) {
-                Text("保存")
+                Text("保存", fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {

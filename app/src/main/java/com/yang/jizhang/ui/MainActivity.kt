@@ -9,16 +9,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.PieChart
@@ -30,13 +28,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,12 +72,13 @@ private fun dayKey(millis: Long): Int {
     return c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
 }
 
-/** 蓝白背景渐变：云白 → 天蓝，暗色为深海军蓝 */
-private fun bgBrush(dark: Boolean): Brush = if (dark) {
-    Brush.verticalGradient(listOf(Color(0xFF060A12), Color(0xFF0B1220), Color(0xFF080D18)))
-} else {
-    Brush.verticalGradient(listOf(Color(0xFFFBFDFF), Color(0xFFEDF4FF), Color(0xFFE1ECFD)))
-}
+/** iOS 分组背景色 */
+@Composable
+private fun iosBackground(): Color = MaterialTheme.colorScheme.background
+
+/** iOS 卡片色 */
+@Composable
+private fun iosCard(): Color = MaterialTheme.colorScheme.surface
 
 @Composable
 fun AppRoot() {
@@ -122,7 +119,6 @@ fun AppRoot() {
         mutableStateOf(ListenerStatus.displayState(context))
     }
     LaunchedEffect(Unit) {
-        // 每隔几秒刷新一次状态，让横幅跟随真实连接
         while (true) {
             listenerState.value = ListenerStatus.displayState(context)
             kotlinx.coroutines.delay(3_000)
@@ -139,23 +135,27 @@ fun AppRoot() {
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = iosBackground(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            GlassTopBar(hazeState, dark, onImport = {
-                picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
-            })
+            IosTopBar(
+                hazeState = hazeState,
+                dark = dark,
+                onAdd = { adding = true },
+                onImport = {
+                    picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
+                },
+            )
         },
-        bottomBar = { GlassBottomBar(hazeState, dark, tab) { tab = it } },
-        floatingActionButton = { GlassFab(hazeState, dark) { adding = true } },
+        bottomBar = { IosTabBar(hazeState, dark, tab) { tab = it } },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
-                .background(bgBrush(dark))
-                .hazeSource(hazeState)
+                .background(iosBackground())
+                .hazeSource(hazeState),
         ) {
-            // 监听状态横幅：未开启 → 引导；已断开 → 提示重连；正常 → 低调提示
+            // 监听状态横幅：未开启 → 引导；已断开 → 提示重连；正常 → 静默
             when (listenerState.value) {
                 ListenerStatus.DisplayState.NEED_PERMISSION -> {
                     SetupBanner(needPermission = true) {
@@ -249,108 +249,130 @@ fun AppRoot() {
     }
 }
 
-/** iOS 超薄毛玻璃材质 */
+/** iOS 毛玻璃材质 */
 @Composable
 private fun glassStyle(dark: Boolean, container: Color? = null) =
     HazeMaterials.thin(containerColor = container ?: if (dark) Color(0xFF1C1C1E) else Color.White)
 
+/** iOS 导航栏：大标题 + 右侧「+」「导入」 */
 @Composable
-private fun GlassTopBar(hazeState: HazeState, dark: Boolean, onImport: () -> Unit) {
-    Row(
+private fun IosTopBar(
+    hazeState: HazeState,
+    dark: Boolean,
+    onAdd: () -> Unit,
+    onImport: () -> Unit,
+) {
+    Column(
         Modifier
             .fillMaxWidth()
             .hazeEffect(state = hazeState, style = glassStyle(dark))
             .statusBarsPadding()
-            .height(54.dp)
             .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("蓝鲸记账", fontWeight = FontWeight.Bold, fontSize = 21.sp, modifier = Modifier.weight(1f))
-        IconButton(onClick = onImport) {
-            Icon(Icons.Rounded.UploadFile, contentDescription = "导入账单 CSV", tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "账单",
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onAdd) {
+                Icon(
+                    Icons.Rounded.Add,
+                    contentDescription = "记一笔",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+            IconButton(onClick = onImport) {
+                Icon(
+                    Icons.Rounded.UploadFile,
+                    contentDescription = "导入账单 CSV",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
+        Spacer(Modifier.height(6.dp))
     }
 }
 
+/** iOS 底部 Tab Bar：全宽毛玻璃 + 极细分割线 */
 @Composable
-private fun GlassBottomBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
-    val shape = RoundedCornerShape(26.dp)
-    Box(Modifier.fillMaxWidth().padding(start = 30.dp, end = 30.dp, bottom = 30.dp)) {
+private fun IosTabBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .hazeEffect(state = hazeState, style = glassStyle(dark)),
+    ) {
+        HorizontalDivider(
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        )
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(62.dp)
-                .shadow(elevation = 18.dp, shape = shape, ambientColor = Color(0x332E6BE6), spotColor = Color(0x442E6BE6))
-                .clip(shape)
-                .hazeEffect(state = hazeState, style = glassStyle(dark))
-                .border(0.5.dp, Color.White.copy(alpha = if (dark) 0.12f else 0.65f), shape)
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
+                .navigationBarsPadding()
+                .height(52.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlassTab("明细", Icons.AutoMirrored.Outlined.ReceiptLong, tab == 0) { onSelect(0) }
-            GlassTab("统计", Icons.Outlined.PieChart, tab == 1) { onSelect(1) }
+            IosTab("明细", Icons.AutoMirrored.Outlined.ReceiptLong, tab == 0) { onSelect(0) }
+            IosTab("统计", Icons.Outlined.PieChart, tab == 1) { onSelect(1) }
         }
     }
 }
 
 @Composable
-private fun GlassTab(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
-    val tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-    val pill = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-    Box(
+private fun RowScope.IosTab(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
         Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(pill)
-            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = tint, modifier = Modifier.height(20.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(label, fontSize = 13.sp, color = tint, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-        }
-    }
-}
-
-@Composable
-private fun GlassFab(hazeState: HazeState, dark: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
-    Row(
-        Modifier
-            .clip(shape)
-            .hazeEffect(state = hazeState, style = glassStyle(dark, MaterialTheme.colorScheme.primary))
-            .border(0.5.dp, Color.White.copy(alpha = 0.45f), shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Rounded.Add, null, tint = Color.White)
-        Spacer(Modifier.width(5.dp))
-        Text("记一笔", color = Color.White, fontWeight = FontWeight.SemiBold)
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(label, fontSize = 10.sp, color = tint, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun SetupBanner(needPermission: Boolean, onClick: () -> Unit) {
+    val tint = if (needPermission) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+    val container = if (needPermission) MaterialTheme.colorScheme.errorContainer
+    else MaterialTheme.colorScheme.tertiaryContainer
     Surface(
-        color = (if (needPermission) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer)
-            .copy(alpha = 0.92f),
-        shape = RoundedCornerShape(16.dp),
+        color = container.copy(alpha = 0.9f),
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable(onClick = onClick),
     ) {
-        Text(
-            if (needPermission) "未开启通知监听，点此设置以实时记账"
-            else "支付监听已断开，点此重新连接",
-            fontSize = 13.sp,
-            color = if (needPermission) MaterialTheme.colorScheme.onErrorContainer
-            else MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (needPermission) "未开启通知监听，点此设置以自动记账"
+                else "支付监听已断开，点此重新连接",
+                fontSize = 13.sp,
+                color = tint,
+                modifier = Modifier.weight(1f),
+            )
+            Text("›", fontSize = 18.sp, color = tint, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -371,7 +393,11 @@ private fun ConfirmDialog(
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("待确认账单") },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = iosCard(),
+        title = {
+            Text("待确认账单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        },
         text = {
             Column {
                 Text(
@@ -384,19 +410,11 @@ private fun ConfirmDialog(
                     Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(
-                        selected = !isIncome,
-                        onClick = { isIncome = false },
-                        label = { Text("支出") },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(
-                        selected = isIncome,
-                        onClick = { isIncome = true },
-                        label = { Text("收入") },
-                    )
-                }
+                IosSegmented(
+                    options = listOf("支出", "收入"),
+                    selectedIndex = if (isIncome) 1 else 0,
+                    onSelect = { isIncome = it == 1 },
+                )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = amountText,
@@ -408,73 +426,81 @@ private fun ConfirmDialog(
                     label = { Text("金额（元）") },
                     prefix = { Text("¥") },
                     singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = valid, onClick = { onConfirm(amountCents, isIncome) }) { Text("确认入账") }
+            TextButton(enabled = valid, onClick = { onConfirm(amountCents, isIncome) }) {
+                Text("确认入账", fontWeight = FontWeight.SemiBold)
+            }
         },
         dismissButton = {
-            Row {
-                TextButton(onClick = onIgnore) { Text("忽略") }
-            }
+            TextButton(onClick = onIgnore) { Text("忽略") }
         },
     )
 }
 
-/** 月份切换 + 汇总：蓝白半透明圆角卡片 */
+/** iOS 月份汇总卡片 */
 @Composable
 private fun MonthCard(
     year: Int, month: Int, expense: Long, income: Long,
     onPrev: () -> Unit, onNext: () -> Unit,
 ) {
-    val dark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(24.dp)
+    val card = iosCard()
     Surface(
-        color = (if (dark) Color(0xFF131A28) else Color.White).copy(alpha = 0.72f),
-        shape = shape,
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.10f else 0.8f)),
-        shadowElevation = 8.dp,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        color = card,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "$year 年 $month 月",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
+                    fontSize = 17.sp,
                     modifier = Modifier.weight(1f),
                 )
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .clickable { onPrev() }
-                        .padding(horizontal = 12.dp, vertical = 2.dp)
-                ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .clickable { onNext() }
-                        .padding(horizontal = 12.dp, vertical = 2.dp)
-                ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+                IosChevron("‹", onPrev)
+                Spacer(Modifier.width(4.dp))
+                IosChevron("›", onNext)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Row {
                 Column(Modifier.weight(1f)) {
-                    Text("支出", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmtCents(expense), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("支出", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(2.dp))
+                    Text(fmtCents(expense), fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = (-0.5).sp)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text("收入", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fmtCents(income), fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("收入", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        fmtCents(income),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        letterSpacing = (-0.5).sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun IosChevron(symbol: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 11.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -500,12 +526,13 @@ fun TxList(
                     )
                 )
             }
+            .sortedByDescending { it.second.first().time }
     }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            top = contentPad.calculateTopPadding() + 6.dp,
-            bottom = contentPad.calculateBottomPadding() + 118.dp,
+            top = contentPad.calculateTopPadding() + 4.dp,
+            bottom = contentPad.calculateBottomPadding() + 24.dp,
         ),
     ) {
         item(key = "month_card") {
@@ -513,67 +540,89 @@ fun TxList(
         }
         if (txs.isEmpty()) {
             item {
-                Text(
-                    "本月暂无记录\n点击右下角「记一笔」开始",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 24.sp,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 80.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 72.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("🪙", fontSize = 44.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "本月暂无记录",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "点击右上角 + 记一笔",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         groups.forEach { (label, list, sums) ->
             item(key = "head_${list.first().id}") {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 16.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    if (sums.first > 0) Text("支 ${fmtCents(sums.first)}  ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (sums.second > 0) Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        label,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (sums.first > 0) {
+                        Text("支 ${fmtCents(sums.first)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (sums.second > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                    }
                 }
             }
-            items(list, key = { it.id }) { tx ->
-                TxRow(tx, onClick = { onItemClick(tx) })
+            item(key = "group_${list.first().id}") {
+                Surface(
+                    color = iosCard(),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    Column {
+                        list.forEachIndexed { index, tx ->
+                            TxRow(tx, showDivider = index < list.lastIndex) { onItemClick(tx) }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/** 蓝白列表卡片：半透明白圆角 + 分类图标底座 */
+/** iOS 分组列表行 */
 @Composable
-private fun TxRow(tx: TxEntity, onClick: () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(20.dp)
-    Surface(
-        color = (if (dark) Color(0xFF131A28) else Color.White).copy(alpha = 0.78f),
-        shape = shape,
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = if (dark) 0.08f else 0.8f)),
-        shadowElevation = 4.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-    ) {
+private fun TxRow(tx: TxEntity, showDivider: Boolean, onClick: () -> Unit) {
+    Column {
         Row(
             Modifier
+                .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = if (dark) 0.18f else 0.10f))
-                    .size(42.dp),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .size(38.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(CategoryRules.icon(tx.category), fontSize = 20.sp)
+                Text(CategoryRules.icon(tx.category), fontSize = 19.sp)
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     tx.note.ifBlank { tx.category },
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
                 )
                 Text(
                     "${tx.category} · ${tx.source}",
@@ -584,8 +633,15 @@ private fun TxRow(tx: TxEntity, onClick: () -> Unit) {
             Text(
                 (if (tx.isIncome) "+" else "-") + fmtCents(tx.amountCents),
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                color = if (tx.isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                fontSize = 17.sp,
+                color = if (tx.isIncome) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 64.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
             )
         }
     }

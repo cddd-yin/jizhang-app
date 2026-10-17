@@ -4,27 +4,51 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 蓝白封面：白色账本 + 海蓝横线 + 白底蓝勾圆章 -->
+    <!-- 卡片投影 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M33,25 h36 a7,7 0 0 1 7,7 v46 a7,7 0 0 1 -7,7 h-36 a7,7 0 0 1 -7,-7 v-46 a7,7 0 0 1 7,-7 z" />
+        android:fillColor="#1F001433"
+        android:pathData="M43,25 H65 A13,13 0 0 1 78,38 V74 A13,13 0 0 1 65,87 H43 A13,13 0 0 1 30,74 V38 A13,13 0 0 1 43,25 Z" />
+    <!-- 白色账本卡片（iOS 圆角卡片） -->
     <path
-        android:fillColor="#2E6BE6"
-        android:pathData="M35,36 h32 a2,2 0 0 1 2,2 v3 a2,2 0 0 1 -2,2 h-32 a2,2 0 0 1 -2,-2 v-3 a2,2 0 0 1 2,-2 z M33,50 h26 a2,2 0 0 1 0,4 h-26 a2,2 0 0 1 0,-4 z M33,60 h18 a2,2 0 0 1 0,4 h-18 a2,2 0 0 1 0,-4 z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M43,23 H65 A13,13 0 0 1 78,36 V72 A13,13 0 0 1 65,85 H43 A13,13 0 0 1 30,72 V36 A13,13 0 0 1 43,23 Z" />
+    <!-- ¥ 符号 -->
     <path
-        android:fillColor="#5AC8FA"
-        android:fillAlpha="0.45"
-        android:pathData="M35,30 h10 v3 h-10 z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:strokeColor="#2E6BE6"
-        android:strokeWidth="2"
-        android:pathData="M71,58 m-13,0 a13,13 0 1 1 26,0 a13,13 0 1 1 -26,0" />
-    <path
-        android:strokeColor="#2E6BE6"
+        android:strokeColor="#FF0A6CFF"
         android:strokeWidth="4.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M65,58 l4.5,4.5 l8,-8.5" />
+        android:pathData="M47,39 L54,48 L61,39" />
+    <path
+        android:strokeColor="#FF0A6CFF"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,47 V63" />
+    <path
+        android:strokeColor="#FF0A6CFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M46.5,52.5 H61.5" />
+    <path
+        android:strokeColor="#FF0A6CFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M46.5,58 H61.5" />
+    <!-- 绿色勾章（iOS 系统绿） -->
+    <path
+        android:fillColor="#FF34C759"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M75,76 m-10.5,0 a10.5,10.5 0 1 1 21,0 a10.5,10.5 0 1 1 -21,0" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M70.5,76 L73.5,79 L79.5,72.8" />
 </vector>
