@@ -47,6 +47,12 @@ interface TxDao {
     @Query("SELECT * FROM transactions WHERE time BETWEEN :start AND :end ORDER BY time DESC")
     fun watchRange(start: Long, end: Long): Flow<List<TxEntity>>
 
+    @Query("SELECT * FROM transactions WHERE dedupeKey = :key LIMIT 1")
+    suspend fun findByDedupeKey(key: String): TxEntity?
+
+    @Query("SELECT * FROM transactions WHERE time BETWEEN :start AND :end")
+    suspend fun getByTimeRangeOnce(start: Long, end: Long): List<TxEntity>
+
     @Query("SELECT * FROM transactions ORDER BY time DESC LIMIT 1")
     suspend fun latest(): TxEntity?
 

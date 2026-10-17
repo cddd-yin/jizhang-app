@@ -1,6 +1,5 @@
 package com.yang.jizhang.ui
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -35,17 +34,21 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
 import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.importer.CsvImporter
+import com.yang.jizhang.notify.PendingConfirmStore
+import com.yang.jizhang.notify.keepalive.KeepAliveService
+import com.yang.jizhang.notify.keepalive.ListenerStatus
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -67,10 +70,6 @@ fun fmtCents(cents: Long): String {
     val abs = Math.abs(cents)
     return "¥${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
 }
-
-fun listenerEnabled(context: Context): Boolean =
-    NotificationManagerCompat.getEnabledListenerPackages(context)
-        .contains(context.packageName)
 
 private fun dayKey(millis: Long): Int {
     val c = Calendar.getInstance().apply { timeInMillis = millis }
@@ -118,6 +117,27 @@ fun AppRoot() {
     val expenseTotal = txs.filter { !it.isIncome }.sumOf { it.amountCents }
     val incomeTotal = txs.filter { it.isIncome }.sumOf { it.amountCents }
 
+    // 监听状态（设置已开 + binder 已连 → 正常）
+    val listenerState = remember {
+        mutableStateOf(ListenerStatus.displayState(context))
+    }
+    LaunchedEffect(Unit) {
+        // 每隔几秒刷新一次状态，让横幅跟随真实连接
+        while (true) {
+            listenerState.value = ListenerStatus.displayState(context)
+            kotlinx.coroutines.delay(3_000)
+        }
+    }
+
+    // 待确认账单：从通知确认页/弹窗进入时拉取
+    var pending by remember { mutableStateOf<List<PendingConfirmStore.Pending>>(PendingConfirmStore.all()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            pending = PendingConfirmStore.all()
+            kotlinx.coroutines.delay(1_000)
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -135,10 +155,20 @@ fun AppRoot() {
                 .background(bgBrush(dark))
                 .hazeSource(hazeState)
         ) {
-            if (!listenerEnabled(context)) {
-                SetupBanner {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            // 监听状态横幅：未开启 → 引导；已断开 → 提示重连；正常 → 低调提示
+            when (listenerState.value) {
+                ListenerStatus.DisplayState.NEED_PERMISSION -> {
+                    SetupBanner(needPermission = true) {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
                 }
+                ListenerStatus.DisplayState.RECOVERING -> {
+                    SetupBanner(needPermission = false) {
+                        ListenerStatus.requestRebind(context, force = true)
+                        KeepAliveService.start(context)
+                    }
+                }
+                ListenerStatus.DisplayState.CONNECTED -> { /* 静默 */ }
             }
             when (tab) {
                 0 -> TxList(
@@ -157,6 +187,31 @@ fun AppRoot() {
                 )
             }
         }
+    }
+
+    // 待确认账单弹窗（依次确认）
+    pending.firstOrNull()?.let { p ->
+        ConfirmDialog(
+            pending = p,
+            onClose = { PendingConfirmStore.remove(p.id) },
+            onConfirm = { amountCents, income ->
+                scope.launch {
+                    dao.insertIgnore(
+                        TxEntity(
+                            amountCents = amountCents,
+                            isIncome = income,
+                            category = CategoryRules.guess(p.merchant, p.source),
+                            note = p.merchant.ifBlank { p.source },
+                            source = p.source,
+                            time = p.transactionTime,
+                            dedupeKey = p.dedupeKey,
+                        )
+                    )
+                }
+                PendingConfirmStore.remove(p.id)
+            },
+            onIgnore = { PendingConfirmStore.remove(p.id) },
+        )
     }
 
     if (adding) {
@@ -278,9 +333,10 @@ private fun GlassFab(hazeState: HazeState, dark: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SetupBanner(onClick: () -> Unit) {
+private fun SetupBanner(needPermission: Boolean, onClick: () -> Unit) {
     Surface(
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.92f),
+        color = (if (needPermission) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer)
+            .copy(alpha = 0.92f),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -288,12 +344,84 @@ private fun SetupBanner(onClick: () -> Unit) {
             .clickable(onClick = onClick),
     ) {
         Text(
-            "未开启通知监听，点此设置以实时记账",
+            if (needPermission) "未开启通知监听，点此设置以实时记账"
+            else "支付监听已断开，点此重新连接",
             fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.onErrorContainer,
+            color = if (needPermission) MaterialTheme.colorScheme.onErrorContainer
+            else MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         )
     }
+}
+
+/** 待确认账单弹窗（自动记账识别结果不确定时弹出，可改金额/收支后入账） */
+@Composable
+private fun ConfirmDialog(
+    pending: PendingConfirmStore.Pending,
+    onClose: () -> Unit,
+    onConfirm: (amountCents: Long, isIncome: Boolean) -> Unit,
+    onIgnore: () -> Unit,
+) {
+    var amountText by remember(pending.id) {
+        mutableStateOf("${pending.amountCents / 100}.${(pending.amountCents % 100).toString().padStart(2, '0')}")
+    }
+    var isIncome by remember(pending.id) { mutableStateOf(pending.isIncome) }
+    val amountCents = amountText.toDoubleOrNull()?.let { Math.round(it * 100) } ?: 0L
+    val valid = amountCents > 0
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("待确认账单") },
+        text = {
+            Column {
+                Text(
+                    "自动记账识别：${pending.source} · ${pending.reason ?: "金额不确定"}",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                pending.rawSnippet?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(
+                        selected = !isIncome,
+                        onClick = { isIncome = false },
+                        label = { Text("支出") },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(
+                        selected = isIncome,
+                        onClick = { isIncome = true },
+                        label = { Text("收入") },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { s ->
+                        if (s.length <= 10 && (s.isEmpty() || Regex("""^\d*(\.\d{0,2})?$""").matches(s))) {
+                            amountText = s
+                        }
+                    },
+                    label = { Text("金额（元）") },
+                    prefix = { Text("¥") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = valid, onClick = { onConfirm(amountCents, isIncome) }) { Text("确认入账") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onIgnore) { Text("忽略") }
+            }
+        },
+    )
 }
 
 /** 月份切换 + 汇总：蓝白半透明圆角卡片 */

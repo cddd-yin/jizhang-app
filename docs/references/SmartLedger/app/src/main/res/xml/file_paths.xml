@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path
+        name="documents"
+        path="Documents/SmartLedger/" />
+    <external-path
+        name="downloads"
+        path="Download/SmartLedger/" />
+    <external-files-path
+        name="app_documents"
+        path="Documents/SmartLedger/" />
+    <files-path
+        name="internal_backup"
+        path="SmartLedger/" />
+    <!-- 应用内更新下载的 APK -->
+    <cache-path
+        name="apk_cache"
+        path="apk/" />
+</paths>
