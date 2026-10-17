@@ -53,6 +53,12 @@ interface TxDao {
     @Query("SELECT * FROM transactions WHERE time BETWEEN :start AND :end")
     suspend fun getByTimeRangeOnce(start: Long, end: Long): List<TxEntity>
 
+    @Query("SELECT * FROM transactions WHERE time >= :start ORDER BY time")
+    fun watchSince(start: Long): Flow<List<TxEntity>>
+
+    @Query("SELECT * FROM transactions ORDER BY time DESC")
+    suspend fun getAllOnce(): List<TxEntity>
+
     @Query("SELECT * FROM transactions ORDER BY time DESC LIMIT 1")
     suspend fun latest(): TxEntity?
 

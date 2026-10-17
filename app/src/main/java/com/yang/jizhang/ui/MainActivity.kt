@@ -1,6 +1,10 @@
 package com.yang.jizhang.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -16,10 +20,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.PieChart
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.*
@@ -36,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
@@ -45,6 +55,7 @@ import com.yang.jizhang.importer.CsvImporter
 import com.yang.jizhang.notify.PendingConfirmStore
 import com.yang.jizhang.notify.keepalive.KeepAliveService
 import com.yang.jizhang.notify.keepalive.ListenerStatus
+import com.yang.jizhang.util.CsvExporter
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -100,6 +111,34 @@ fun AppRoot() {
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
+    // 搜索过滤：按备注 / 分类 / 来源模糊匹配
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(txs, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) txs
+        else txs.filter {
+            it.note.contains(q, ignoreCase = true) ||
+                it.category.contains(q, ignoreCase = true) ||
+                it.source.contains(q, ignoreCase = true)
+        }
+    }
+
+    // 设置入口（权限引导页）与导出
+    var showGuide by remember { mutableStateOf(false) }
+    var exportTarget by remember { mutableIntStateOf(0) } // 0=未选择 1=本月 2=全部
+
+    // Android 13+ 首次进入运行时申请通知权限（否则「已记一笔」「待确认」通知全部不可见）
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !isPostNotificationsGranted(context)
+        ) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             val n = runCatching { CsvImporter.import(context, uri, Source.IMPORT) }.getOrDefault(0)
@@ -111,8 +150,8 @@ fun AppRoot() {
         }
     }
 
-    val expenseTotal = txs.filter { !it.isIncome }.sumOf { it.amountCents }
-    val incomeTotal = txs.filter { it.isIncome }.sumOf { it.amountCents }
+    val expenseTotal = filtered.filter { !it.isIncome }.sumOf { it.amountCents }
+    val incomeTotal = filtered.filter { it.isIncome }.sumOf { it.amountCents }
 
     // 监听状态（设置已开 + binder 已连 → 正常）
     val listenerState = remember {
@@ -141,10 +180,15 @@ fun AppRoot() {
             IosTopBar(
                 hazeState = hazeState,
                 dark = dark,
+                showSearch = tab == 0,
+                searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
                 onAdd = { adding = true },
                 onImport = {
                     picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
                 },
+                onExport = { exportTarget = 1 },
+                onSettings = { showGuide = true },
             )
         },
         bottomBar = { IosTabBar(hazeState, dark, tab) { tab = it } },
@@ -172,7 +216,7 @@ fun AppRoot() {
             }
             when (tab) {
                 0 -> TxList(
-                    txs = txs,
+                    txs = filtered,
                     contentPad = pad,
                     expense = expenseTotal,
                     income = incomeTotal,
@@ -184,6 +228,8 @@ fun AppRoot() {
                 else -> StatsTab(
                     txs = txs,
                     contentPad = pad,
+                    dao = dao,
+                    year = year, month = month,
                 )
             }
         }
@@ -247,6 +293,49 @@ fun AppRoot() {
             },
         )
     }
+
+    // 导出菜单：本月 / 全部，导出后走系统分享
+    if (exportTarget != 0) {
+        AlertDialog(
+            onDismissRequest = { exportTarget = 0 },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = iosCard(),
+            title = {
+                Text(
+                    "导出账单",
+                    fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                )
+            },
+            text = {
+                Column {
+                    ExportOption("本月账单（$year 年 $month 月）") {
+                        exportTarget = 0
+                        scope.launch {
+                            val uri = CsvExporter.export(context, range[0], range[1] - 1)
+                            handleExportResult(context, uri)
+                        }
+                    }
+                    ExportOption("全部账单") {
+                        exportTarget = 0
+                        scope.launch {
+                            val uri = CsvExporter.exportAll(context)
+                            handleExportResult(context, uri)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { exportTarget = 0 }) { Text("取消") }
+            },
+        )
+    }
+
+    // 权限引导 / 设置页（覆盖在主界面之上）
+    if (showGuide) {
+        PermissionGuideScreen(onClose = { showGuide = false })
+    }
 }
 
 /** iOS 毛玻璃材质 */
@@ -254,13 +343,18 @@ fun AppRoot() {
 private fun glassStyle(dark: Boolean, container: Color? = null) =
     HazeMaterials.thin(containerColor = container ?: if (dark) Color(0xFF1C1C1E) else Color.White)
 
-/** iOS 导航栏：大标题 + 右侧「+」「导入」 */
+/** iOS 导航栏：大标题 + 右侧「+」「导入」「导出」「设置」+ 搜索框 */
 @Composable
 private fun IosTopBar(
     hazeState: HazeState,
     dark: Boolean,
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
     onAdd: () -> Unit,
     onImport: () -> Unit,
+    onExport: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Column(
         Modifier
@@ -294,8 +388,108 @@ private fun IosTopBar(
                     modifier = Modifier.size(24.dp),
                 )
             }
+            IconButton(onClick = onExport) {
+                Icon(
+                    Icons.Outlined.IosShare,
+                    contentDescription = "导出账单 CSV",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onSettings) {
+                Icon(
+                    Icons.Outlined.Settings,
+                    contentDescription = "自动记账设置",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
-        Spacer(Modifier.height(6.dp))
+        if (showSearch) {
+            Spacer(Modifier.height(10.dp))
+            IosSearchBar(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                placeholder = "搜索备注 / 分类 / 来源",
+            )
+            Spacer(Modifier.height(6.dp))
+        } else {
+            Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+/** iOS 风格搜索框 */
+@Composable
+private fun IosSearchBar(value: String, onValueChange: (String) -> Unit, placeholder: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = LocalTextStyle.current.copy(fontSize = 15.sp),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    inner()
+                },
+            )
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "清空",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 导出选项行 */
+@Composable
+private fun ExportOption(label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun handleExportResult(context: android.content.Context, uri: Uri?) {
+    if (uri != null) {
+        CsvExporter.shareFile(context, uri)
+    } else {
+        Toast.makeText(context, "没有可导出的账单记录", Toast.LENGTH_LONG).show()
     }
 }
 
