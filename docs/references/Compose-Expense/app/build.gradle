@@ -1,0 +1,266 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-android'
+    id 'com.google.devtools.ksp'
+    id 'dagger.hilt.android.plugin'
+    id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
+    id 'com.google.firebase.firebase-perf'
+    id 'kotlin-parcelize'
+    id 'androidx.room'
+    id 'com.google.protobuf'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+apply from: "$rootDir/gradle/test-report.gradle"
+
+ext.codeCoverage = [
+        enabled      : true,
+        fileBlackList: [
+        ],
+        fileWhiteList: [
+                // UI
+                '**/ui/*ViewModel*',
+                '**/ui/*State*',
+                // Data
+                // '**/data/*Environment*',
+                '**/foundation/datasource/local/*Read*',
+                '**/foundation/datasource/local/*Write*',
+                // '**/foundation/datasource/preference/PreferenceManager*',
+                // Core
+                '**/foundation/extension/*',
+        ]
+]
+
+android {
+    namespace 'com.wisnu.kurniawan.wallee'
+
+    defaultConfig {
+        minSdkVersion project.ext.minSdkVersion
+        targetSdkVersion project.ext.targetSdkVersion
+        applicationId project.ext.appId
+        versionCode project.ext.versionCode
+        versionName project.ext.versionName
+        compileSdk project.ext.compileSdkVersion
+
+        vectorDrawables {
+            useSupportLibrary true
+        }
+
+        room {
+            schemaDirectory "$projectDir/room-schemas"
+        }
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release {
+            Properties properties = new Properties()
+            properties.load(project.rootProject.file('keystore.properties').newDataInputStream())
+
+            storeFile file("${properties.getProperty('RELEASE_STORE_FILE')}")
+            storePassword "${properties.getProperty('RELEASE_STORE_PASSWORD')}"
+            keyAlias "${properties.getProperty('RELEASE_KEY_ALIAS')}"
+            keyPassword "${properties.getProperty('RELEASE_KEY_PASSWORD')}"
+        }
+    }
+
+    applicationVariants.all { variant ->
+        def variantName = variant.getName()
+        def debug = variantName.contains('debug')
+        def appName
+
+        if (debug) {
+            appName = app_name_debug
+        } else {
+            appName = app_name_release
+        }
+
+        variant.mergedFlavor.manifestPlaceholders = [
+                APP_NAME   : appName,
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        benchmark {
+            initWith buildTypes.release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+            proguardFiles("benchmark-rules.pro")
+        }
+        debug {
+            applicationIdSuffix ".debug"
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled = true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = libs.google.protobuf.protoc.get().toString()
+    }
+
+    // Generates the java Protobuf-lite code for the Protobufs in this project. See
+    // https://github.com/google/protobuf-gradle-plugin#customizing-protobuf-compilation
+    // for more information.
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java {
+                    option 'lite'
+                }
+            }
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all(), { variant ->
+        afterEvaluate {
+            def capName = variant.name.capitalize()
+            tasks.getByName("ksp${capName}Kotlin") {
+                setSource(tasks.getByName("generate${capName}Proto").outputs)
+            }
+        }
+    })
+}
+
+dependencies {
+
+    ///////////////
+    // UI SUPPORT
+    //////
+
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.window
+    implementation libs.androidx.appcompat
+    implementation libs.androidx.lifecycle.runtimeCompose
+    implementation libs.androidx.lifecycle.viewModelCompose
+    implementation libs.androidx.activity.compose
+    implementation libs.androidx.navigation.compose
+    implementation libs.androidx.hilt.navigation.compose
+    implementation libs.lottie.compose
+    implementation libs.google.material
+    implementation libs.wisnu.foundation.core.viewmodel
+
+    implementation libs.google.accompanist.systemuicontroller
+
+    // Startup
+    implementation libs.androidx.startup
+    implementation libs.androidx.profileinstaller
+
+    // Compose
+    // For Compose runtime by default coroutine runtime already included from ui, foundation, implicitly
+    // Not able to get rid of material lib due to we still use these component and not available yet in material3
+    // androidx.compose.material.ModalBottomSheetLayout
+    implementation libs.androidx.compose.material
+    implementation libs.androidx.compose.material3
+    implementation libs.androidx.compose.material.iconsCore
+    implementation libs.androidx.compose.material.iconsExtended
+    implementation libs.androidx.compose.material.navigation
+    implementation libs.androidx.compose.foundation
+    implementation libs.androidx.compose.ui
+    implementation libs.androidx.compose.widget
+
+
+    ///////////////
+    // DATA SUPPORT
+    //////
+
+    // SQL
+    implementation libs.androidx.room.runtime
+    implementation libs.androidx.room.ktx
+    ksp libs.androidx.room.compiler
+
+    // Key-value
+    implementation libs.androidx.dataStore.core
+    implementation libs.google.protobuf
+
+    // Server
+    implementation libs.bundles.networking
+
+
+    ///////////////
+    // CORE
+    //////
+
+    // Concurrent processing
+    implementation libs.jetbrains.coroutines.android
+
+    // DI
+    implementation libs.google.hilt.android
+    ksp libs.google.hilt.compiler
+
+    // Date time
+    coreLibraryDesugaring(libs.android.desugarJdkLibs)
+    implementation libs.wisnu.foundation.core.datetime
+
+    // Logger
+    implementation libs.wisnu.foundation.core.loggr
+    implementation libs.wisnu.foundation.lib.lifecycleloggr
+
+    // Analytics
+    implementation platform(libs.google.firebase)
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation('com.google.firebase:firebase-perf') {
+        /*
+        Exclusion of protobuf / protolite dependencies is necessary as the
+        datastore-proto brings in protobuf dependencies. These are the source of truth
+        for Now in Android.
+        That's why the duplicate classes from below dependencies are excluded.
+        */
+        exclude group: "com.google.protobuf", module: "protobuf-javalite"
+        exclude group: "com.google.firebase", module: "protolite-well-known-types"
+    }
+    implementation 'com.google.firebase:firebase-crashlytics'
+    implementation libs.wisnu.foundation.core.analytics
+    implementation libs.wisnu.foundation.lib.analyticsmanager
+
+    ///////////////
+    // DEBUGGING SUPPORT
+    //////
+
+    implementation libs.debugging.compose.uiTooling
+
+    debugImplementation libs.wisnu.foundation.test.debug
+    releaseImplementation libs.wisnu.foundation.test.debugnoop
+    benchmarkImplementation libs.wisnu.foundation.test.debugnoop
+
+
+    ///////////////
+    // UNIT TEST SUPPORT
+    //////
+
+    testImplementation libs.test.androidx.junit
+    testImplementation libs.test.robolectric
+    testImplementation libs.test.junit.old
+    testImplementation libs.test.junit.oldParams
+    testImplementation libs.test.coroutines
+    testImplementation libs.test.turbine
+
+}

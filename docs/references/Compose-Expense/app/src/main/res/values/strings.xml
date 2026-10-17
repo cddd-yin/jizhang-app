@@ -1,0 +1,129 @@
+<resources>
+    <string name="app_name" translatable="false">Wallee</string>
+
+    <string name="show_more">Show More</string>
+    <string name="add">Add</string>
+    <string name="welcome">Welcome!</string>
+
+    <string name="login_login">Log in</string>
+    <string name="login_email">Email</string>
+    <string name="login_email_invalid">Email invalid</string>
+    <string name="login_password">Password</string>
+
+    <string name="category">Category</string>
+    <string name="category_monthly_fee">Monthly fee</string>
+    <string name="category_admin_fee">Admin fee</string>
+    <string name="category_pets">Pet care</string>
+    <string name="category_donations">Donation &amp; social</string>
+    <string name="category_education">Education</string>
+    <string name="category_financial">Financial &amp; money</string>
+    <string name="category_entertainment">Entertainment</string>
+    <string name="category_children_needs">Children needs</string>
+    <string name="category_household_needs">Household needs</string>
+    <string name="category_sport">Health &amp; sport</string>
+    <string name="category_others">Others</string>
+    <string name="category_food">Food &amp; drink</string>
+    <string name="category_parking">Parking</string>
+    <string name="category_fuel">Gas</string>
+    <string name="category_movie">Watch movie</string>
+    <string name="category_automotive">Automotive</string>
+    <string name="category_tax">Tax</string>
+    <string name="category_income">Income</string>
+    <string name="category_business_expenses">Business expenses</string>
+    <string name="category_self_care">Self care</string>
+    <string name="category_loan">Loan</string>
+    <string name="category_service">Service</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_bills">Bills &amp; utility</string>
+    <string name="category_taxi">Taxi</string>
+    <string name="category_cash_withdrawal">Cash withdrawal</string>
+    <string name="category_phone">Phone &amp; internet</string>
+    <string name="category_top_up">E-wallet</string>
+    <string name="category_public_transportation">Public transportation</string>
+    <string name="category_travel">Travel</string>
+    <string name="category_uncategorized">Uncategorized</string>
+    <string name="category_recent">Most frequent</string>
+    <string name="category_all">All categories</string>
+
+    <string name="account_e_wallet">E-wallet</string>
+    <string name="account_bank">Bank</string>
+    <string name="account_cash">Cash</string>
+    <string name="account_investment">Investment</string>
+    <string name="account_others">Others</string>
+
+    <string name="setting_title">Main menu</string>
+    <string name="setting_theme">Themes</string>
+    <string name="setting_theme_automatic">Automatic</string>
+    <string name="setting_theme_wallpaper" translatable="false">Wallpaper</string>
+    <string name="setting_theme_light">Daylight</string>
+    <string name="setting_theme_twilight">Twilight</string>
+    <string name="setting_theme_night">Midnight</string>
+    <string name="setting_theme_sunrise">Sunrise</string>
+    <string name="setting_theme_aurora">Aurora</string>
+    <string name="setting_logout">Log out</string>
+    <string name="setting_logout_confirm">Log out?</string>
+    <string name="setting_language">Language</string>
+    <string name="setting_language_english" translatable="false">English</string>
+    <string name="setting_language_indonesia" translatable="false">Bahasa Indonesia</string>
+
+    <string name="dashboard_transaction">Transaction</string>
+    <string name="dashboard_balance">Balance</string>
+
+    <string name="transaction_expense">Expense</string>
+    <string name="transaction_income">Income</string>
+    <string name="transaction_transfer">Transfer</string>
+    <string name="transaction_edit_save">Save</string>
+    <string name="transaction_edit_cancel">Cancel</string>
+    <string name="transaction_edit_add">Add Transaction</string>
+    <string name="transaction_edit_expense">Edit Expense</string>
+    <string name="transaction_edit_income">Edit Income</string>
+    <string name="transaction_edit_transfer">Edit Transfer</string>
+    <string name="transaction_edit_total">Total</string>
+    <string name="transaction_edit_general">General</string>
+    <string name="transaction_edit_account">Account</string>
+    <string name="transaction_edit_account_from">Account from</string>
+    <string name="transaction_edit_account_to">Account to</string>
+    <string name="transaction_edit_date_transaction">Transaction date</string>
+    <string name="transaction_edit_note">Note (Optional)</string>
+    <string name="transaction_edit_note_expense_hint">Example \"Buy fried chicken &amp; tea\"</string>
+    <string name="transaction_edit_note_income_hint">Example \"For saving\"</string>
+    <string name="transaction_edit_note_transfer_hint">Example \"For subscription this month\"</string>
+    <string name="transaction_summary">Summary</string>
+    <string name="transaction_cash_flow" translatable="false">Cash Flow</string>
+    <string name="transaction_this_month">This Month</string>
+    <string name="transaction_last">Last Transaction</string>
+    <string name="transaction_last_no_data_title">Keep Creating Transaction</string>
+    <string name="transaction_last_no_data_message">It will show your last 5 transactions.</string>
+    <string name="transaction_top_expenses">Top Expenses</string>
+    <string name="transaction_top_expenses_no_data_message">It will show your 5 top expense this month group by category.</string>
+    <string name="transaction_edit_delete">Delete Transaction</string>
+    <string name="transaction_account_deleted">[Account deleted]</string>
+
+    <string name="all_transaction_headline">Transactions</string>
+    <string name="all_transaction_empty">No transactions</string>
+
+    <string name="account_edit_add">Add Account</string>
+    <string name="account_edit_edit">Edit Account</string>
+    <string name="account_edit_balance">Current balance</string>
+    <string name="account_edit_select_category">Select Category</string>
+    <string name="account_edit_name">Name</string>
+    <string name="account_edit_name_hint">Required</string>
+    <string name="account_edit_name_duplicate">You already have account with this name</string>
+    <string name="account_edit_delete">Delete Account</string>
+
+    <string name="balance_all_time">All the time</string>
+    <string name="balance_total_transaction">%1$s transactions</string>
+    <string name="balance_account_updated_at_second">Updated a few moments ago</string>
+    <string name="balance_account_updated_at_minute">Updated %1$s minutes ago</string>
+    <string name="balance_account_updated_at_hour">Updated %1$s hours ago</string>
+    <string name="balance_account_updated_at_yesterday">Updated yesterday</string>
+    <string name="balance_account_updated_at_date">Updated %1$s</string>
+    <string name="balance_account_amount_change_title">Reason adjust balance</string>
+    <string name="balance_account_amount_change_initial_reason">Haven\'t tracked for a long time</string>
+    <string name="balance_account_amount_change_initial_reason_desc">Will change the initial balance on your account.</string>
+    <string name="balance_account_amount_change_by_record_reason">Forgot to track a few transactions</string>
+    <string name="balance_account_amount_change_by_record_reason_desc">Will create a correction transaction for it.</string>
+
+    <string name="onboarding_title">Choose your country currency</string>
+
+</resources>

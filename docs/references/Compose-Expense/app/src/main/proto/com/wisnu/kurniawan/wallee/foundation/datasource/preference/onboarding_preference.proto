@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option java_package = "com.wisnu.kurniawan.wallee.foundation.datasource.preference.model";
+option java_multiple_files = true;
+
+message OnboardingPreference {
+  bool finishOnboarding = 1;
+}

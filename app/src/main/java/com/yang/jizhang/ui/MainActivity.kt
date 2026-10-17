@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Search
@@ -73,23 +74,21 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun fmtCents(cents: Long): String {
-    val abs = Math.abs(cents)
-    return "¥${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
-}
+/** 金额格式化：带千分位，如 ¥12,345.67 */
+fun fmtCents(cents: Long): String = "¥" + fmtMoney(cents)
 
 private fun dayKey(millis: Long): Int {
     val c = Calendar.getInstance().apply { timeInMillis = millis }
     return c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
 }
 
-/** iOS 分组背景色 */
+/** 页面背景（双层背景 L2） */
 @Composable
 private fun iosBackground(): Color = MaterialTheme.colorScheme.background
 
-/** iOS 卡片色 */
+/** 卡片色（双层背景 L1：浅色下为浅灰卡，深色下为深色卡） */
 @Composable
-private fun iosCard(): Color = MaterialTheme.colorScheme.surface
+internal fun iosCard(): Color = MaterialTheme.colorScheme.secondary
 
 @Composable
 fun AppRoot() {
@@ -110,6 +109,9 @@ fun AppRoot() {
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+
+    // 最近交易（首页 Dashboard 用，跨月）
+    val recent by dao.watchRecent(8).collectAsStateWithLifecycle(initialValue = emptyList())
 
     // 搜索过滤：按备注 / 分类 / 来源模糊匹配
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -180,7 +182,7 @@ fun AppRoot() {
             IosTopBar(
                 hazeState = hazeState,
                 dark = dark,
-                showSearch = tab == 0,
+                tab = tab,
                 searchQuery = searchQuery,
                 onSearchChange = { searchQuery = it },
                 onAdd = { adding = true },
@@ -215,7 +217,17 @@ fun AppRoot() {
                 ListenerStatus.DisplayState.CONNECTED -> { /* 静默 */ }
             }
             when (tab) {
-                0 -> TxList(
+                0 -> DashboardTab(
+                    txs = txs,
+                    recent = recent,
+                    year = year, month = month,
+                    contentPad = pad,
+                    onPrev = { if (month == 1) { year--; month = 12 } else month-- },
+                    onNext = { if (month == 12) { year++; month = 1 } else month++ },
+                    onEdit = { editing = it },
+                    onGoRecords = { tab = 1 },
+                )
+                1 -> TxList(
                     txs = filtered,
                     contentPad = pad,
                     expense = expenseTotal,
@@ -343,12 +355,12 @@ fun AppRoot() {
 private fun glassStyle(dark: Boolean, container: Color? = null) =
     HazeMaterials.thin(containerColor = container ?: if (dark) Color(0xFF1C1C1E) else Color.White)
 
-/** iOS 导航栏：大标题 + 右侧「+」「导入」「导出」「设置」+ 搜索框 */
+/** 顶栏：每页大标题 + 右侧操作（明细页有 + / 导入 / 导出 / 设置；首页与统计页仅 + / 设置）+ 明细页搜索框 */
 @Composable
 private fun IosTopBar(
     hazeState: HazeState,
     dark: Boolean,
-    showSearch: Boolean,
+    tab: Int,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     onAdd: () -> Unit,
@@ -366,7 +378,11 @@ private fun IosTopBar(
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "账单",
+                when (tab) {
+                    0 -> "账本"
+                    1 -> "账单"
+                    else -> "统计"
+                },
                 fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.5).sp,
@@ -380,21 +396,23 @@ private fun IosTopBar(
                     modifier = Modifier.size(26.dp),
                 )
             }
-            IconButton(onClick = onImport) {
-                Icon(
-                    Icons.Rounded.UploadFile,
-                    contentDescription = "导入账单 CSV",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            IconButton(onClick = onExport) {
-                Icon(
-                    Icons.Outlined.IosShare,
-                    contentDescription = "导出账单 CSV",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
+            if (tab == 1) {
+                IconButton(onClick = onImport) {
+                    Icon(
+                        Icons.Rounded.UploadFile,
+                        contentDescription = "导入账单 CSV",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                IconButton(onClick = onExport) {
+                    Icon(
+                        Icons.Outlined.IosShare,
+                        contentDescription = "导出账单 CSV",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             }
             IconButton(onClick = onSettings) {
                 Icon(
@@ -405,7 +423,7 @@ private fun IosTopBar(
                 )
             }
         }
-        if (showSearch) {
+        if (tab == 1) {
             Spacer(Modifier.height(10.dp))
             IosSearchBar(
                 value = searchQuery,
@@ -493,7 +511,7 @@ private fun handleExportResult(context: android.content.Context, uri: Uri?) {
     }
 }
 
-/** iOS 底部 Tab Bar：全宽毛玻璃 + 极细分割线 */
+/** iOS 底部 Tab Bar：全宽毛玻璃 + 极细分割线，三页：首页 / 明细 / 统计 */
 @Composable
 private fun IosTabBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (Int) -> Unit) {
     Column(
@@ -513,8 +531,9 @@ private fun IosTabBar(hazeState: HazeState, dark: Boolean, tab: Int, onSelect: (
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IosTab("明细", Icons.AutoMirrored.Outlined.ReceiptLong, tab == 0) { onSelect(0) }
-            IosTab("统计", Icons.Outlined.PieChart, tab == 1) { onSelect(1) }
+            IosTab("首页", Icons.Outlined.Home, tab == 0) { onSelect(0) }
+            IosTab("明细", Icons.AutoMirrored.Outlined.ReceiptLong, tab == 1) { onSelect(1) }
+            IosTab("统计", Icons.Outlined.PieChart, tab == 2) { onSelect(2) }
         }
     }
 }
@@ -676,7 +695,7 @@ private fun MonthCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 28.sp,
                         letterSpacing = (-0.5).sp,
-                        color = MaterialTheme.colorScheme.secondary,
+                        color = incomeColor(),
                     )
                 }
             }
@@ -685,7 +704,7 @@ private fun MonthCard(
 }
 
 @Composable
-private fun IosChevron(symbol: String, onClick: () -> Unit) {
+internal fun IosChevron(symbol: String, onClick: () -> Unit) {
     Box(
         Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -771,7 +790,7 @@ fun TxList(
                     }
                     if (sums.second > 0) {
                         Spacer(Modifier.width(8.dp))
-                        Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                        Text("收 ${fmtCents(sums.second)}", fontSize = 12.sp, color = incomeColor())
                     }
                 }
             }
@@ -794,7 +813,7 @@ fun TxList(
 
 /** iOS 分组列表行 */
 @Composable
-private fun TxRow(tx: TxEntity, showDivider: Boolean, onClick: () -> Unit) {
+internal fun TxRow(tx: TxEntity, showDivider: Boolean, onClick: () -> Unit) {
     Column {
         Row(
             Modifier
@@ -828,7 +847,7 @@ private fun TxRow(tx: TxEntity, showDivider: Boolean, onClick: () -> Unit) {
                 (if (tx.isIncome) "+" else "-") + fmtCents(tx.amountCents),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 17.sp,
-                color = if (tx.isIncome) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
+                color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
             )
         }
         if (showDivider) {

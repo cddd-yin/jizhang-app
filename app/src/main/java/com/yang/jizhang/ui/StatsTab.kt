@@ -26,16 +26,16 @@ import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
 import java.util.Calendar
 
-/** 近 6 个月图表配色（iOS 柔和色板） */
+/** 图表配色（靛蓝系高级色板，与主题一致） */
 private val chartColors = listOf(
-    Color(0xFF4A90D9), Color(0xFF50B85F), Color(0xFFF5A623), Color(0xFFE24C4C),
-    Color(0xFF9B59B6), Color(0xFF1ABC9C), Color(0xFFE67E22), Color(0xFF5B7BD5),
+    Color(0xFF5B5FEF), Color(0xFF00A86B), Color(0xFFFF9F0A), Color(0xFFFD3C4A),
+    Color(0xFF7C4DFF), Color(0xFF00BCD4), Color(0xFFFF7043), Color(0xFF7986CB),
 )
 
 /** 统计页：本月结余 + 近 6 个月支出柱状图 + 收入分类占比 + 本月支出分类 */
 @Composable
 fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: Int, month: Int) {
-    val cardColor = MaterialTheme.colorScheme.surface
+    val cardColor = iosCard()
     val cardShape = RoundedCornerShape(16.dp)
 
     val expense = txs.filter { !it.isIncome }
@@ -114,9 +114,11 @@ fun StatsTab(txs: List<TxEntity>, contentPad: PaddingValues, dao: TxDao, year: I
                 Column(Modifier.padding(18.dp)) {
                     Text("本月结余", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(2.dp))
+                    val balance = incomeTotal - expenseTotal
                     Text(
-                        (if (incomeTotal - expenseTotal >= 0) "+" else "-") + fmtCents(Math.abs(incomeTotal - expenseTotal)),
+                        (if (balance >= 0) "+" else "-") + fmtCents(Math.abs(balance)),
                         fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp,
+                        color = if (balance >= 0) incomeColor() else expenseColor(),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(

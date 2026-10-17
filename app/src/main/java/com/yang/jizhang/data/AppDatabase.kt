@@ -56,6 +56,9 @@ interface TxDao {
     @Query("SELECT * FROM transactions WHERE time >= :start ORDER BY time")
     fun watchSince(start: Long): Flow<List<TxEntity>>
 
+    @Query("SELECT * FROM transactions ORDER BY time DESC LIMIT :limit")
+    fun watchRecent(limit: Int): Flow<List<TxEntity>>
+
     @Query("SELECT * FROM transactions ORDER BY time DESC")
     suspend fun getAllOnce(): List<TxEntity>
 

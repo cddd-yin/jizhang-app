@@ -187,7 +187,7 @@ private fun GuideItem(
     onClick: () -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = iosCard(),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -202,7 +202,7 @@ private fun GuideItem(
                 Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .background(
-                        if (granted) MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+                        if (granted) incomeColor().copy(alpha = 0.14f)
                         else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                     )
                     .size(38.dp),
@@ -211,7 +211,7 @@ private fun GuideItem(
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = if (granted) MaterialTheme.colorScheme.secondary
+                    tint = if (granted) incomeColor()
                     else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
@@ -229,7 +229,7 @@ private fun GuideItem(
                 Text(
                     "已开启",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = incomeColor(),
                     fontWeight = FontWeight.Medium,
                 )
             } else {

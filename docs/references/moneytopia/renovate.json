@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "matchPackageNames": ["com.patrykandpatrick.vico"],
+      "allowedVersions": "<2.0.1"
+    },
+    {
+      "matchPackageNames": ["org.jetbrains.kotlin.android", "org.jetbrains.kotlin.plugin.compose"],
+      "allowedVersions": "<2.1.0"
+    }
+  ]
+}
