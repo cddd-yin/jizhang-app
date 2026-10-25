@@ -42,7 +42,10 @@ object DedupHelper {
 
             val sameMerchant = merchantMatch(parsed.merchant, existing.note)
             val sameChannel = parsed.source == existing.source
-            val bothNoMerchant = parsed.merchant.isBlank() && existing.note.isBlank()
+            // 落库时 note = merchant.ifBlank { source }，note == source 即代表「通知里没有商户」，
+            // 否则 bothNoMerchant 恒为 false、短窗规则形同虚设（v3.6.0 修复）
+            val existingNoMerchant = existing.note.isBlank() || existing.note == existing.source
+            val bothNoMerchant = parsed.merchant.isBlank() && existingNoMerchant
 
             val window = when {
                 sameMerchant -> MERCHANT_WINDOW_MS

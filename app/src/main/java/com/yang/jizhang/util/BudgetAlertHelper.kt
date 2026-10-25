@@ -53,6 +53,11 @@ object BudgetAlertHelper {
             }
             val key = levelKey(budget.id, win[0])
             val notified = prefs.getInt(key, 0)
+            if (level < notified) {
+                // 预算被调大或支出被删后档位回落：同步降档，之后重新跨档可再次提醒（v3.6.0 修复档位粘滞）
+                prefs.edit().putInt(key, level).apply()
+                continue
+            }
             if (level <= notified) continue
 
             val name = budget.category.ifEmpty { "总预算" }

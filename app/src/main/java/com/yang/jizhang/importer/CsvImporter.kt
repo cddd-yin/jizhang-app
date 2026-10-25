@@ -137,6 +137,16 @@ object CsvImporter {
                 tx.copy(source = appLabel)
             } else tx
 
+            // 与自动记账/手动记录撞车去重（v3.6.0）：同一笔支付已被实时记过时跳过，避免导入产生双份；
+            // 只对非导入来源生效（文件内两笔真实同额交易不受影响），重复导入同文件仍由 dedupeKey 幂等兜底
+            val nearDuplicates = db.getByTimeRangeOnce(time - 2 * 60_000, time + 2 * 60_000)
+            if (nearDuplicates.any {
+                    it.amountCents == amountCents && it.isIncome == isIncome && it.source != Source.IMPORT
+                }
+            ) {
+                continue
+            }
+
             val ok = db.insertIgnore(tagged) != -1L
             if (ok) inserted++
         }

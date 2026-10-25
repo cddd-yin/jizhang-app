@@ -27,7 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,11 +66,22 @@ fun HomeTab(
     onDelete: (TxEntity) -> Unit,
 ) {
     val context = LocalContext.current
-    val now = remember { Calendar.getInstance() }
-    val monthLabel = "${now.get(Calendar.YEAR)} 年 ${now.get(Calendar.MONTH) + 1} 月"
+
+    // 「本月」随日历翻转（v3.6.0 修复：跨月零点后结余/预算仍停在旧月的粘滞问题）
+    var monthStamp by remember { mutableIntStateOf(currentMonthStamp()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            val s = currentMonthStamp()
+            if (s != monthStamp) monthStamp = s
+        }
+    }
+    val yearNow = monthStamp / 100
+    val monthNow = monthStamp % 100
+    val monthLabel = "$yearNow 年 $monthNow 月"
 
     // 当前自然月全量流水（结余口径）与最近交易（列表口径）分开取
-    val monthRange = remember { com.yang.jizhang.CategoryRules.monthRange(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1) }
+    val monthRange = remember(monthStamp) { com.yang.jizhang.CategoryRules.monthRange(yearNow, monthNow) }
     val monthTxs by dao.watchRange(monthRange[0], monthRange[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val recent by dao.watchRecent(8).collectAsStateWithLifecycle(initialValue = emptyList())
@@ -233,6 +246,11 @@ fun HomeTab(
             }
         }
     }
+}
+
+private fun currentMonthStamp(): Int {
+    val c = Calendar.getInstance()
+    return c.get(Calendar.YEAR) * 100 + c.get(Calendar.MONTH) + 1
 }
 
 private fun formatDay(millis: Long): String {
