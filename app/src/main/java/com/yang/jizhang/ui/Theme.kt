@@ -33,8 +33,8 @@ enum class JzPreset(
     val accentLight: Color,
 ) {
     MATERIAL_YOU("动态取色", Color(0xFF6750A4), Color(0xFF6750A4)), // Material You（Android 12+ 壁纸取色，官方设计语言）
-    DEEP_SEA("深海", Color(0xFF8B8CF8), Color(0xFF5A5BD8)),   // 默认 · 藤紫
-    SKY("晴空", Color(0xFF4CC2FF), Color(0xFF0084D1)),        // 天蓝（v2.x 记忆色）
+    SKY("天码", Color(0xFF00A6F4), Color(0xFF0084D1)),        // v5.0 默认 · ZCode 天蓝（sky-500/sky-600）
+    DEEP_SEA("深海", Color(0xFF8B8CF8), Color(0xFF5A5BD8)),   // 藤紫
     MINT("薄荷", Color(0xFF3DDCB4), Color(0xFF0FA968)),       // 薄荷绿
     SAKURA("樱花", Color(0xFFF78FB3), Color(0xFFE24C7B)),     // 樱花粉
     AMBER("琥珀", Color(0xFFF5B544), Color(0xFFB25E09)),      // 琥珀橙
@@ -54,9 +54,9 @@ object ThemePrefs {
         runCatching {
             JzPreset.valueOf(
                 context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
-                    .getString(KEY_PRESET, null) ?: JzPreset.DEEP_SEA.name
+                    .getString(KEY_PRESET, null) ?: JzPreset.SKY.name
             )
-        }.getOrDefault(JzPreset.DEEP_SEA)
+        }.getOrDefault(JzPreset.SKY)
 
     fun mode(context: Context): JzMode =
         runCatching {
@@ -93,20 +93,20 @@ val JzChartColors = listOf(
     Color(0xFFA78BFA), // 亮紫
 )
 
-// ── 表面（深色：深海；浅色：云白） ──
-private val DarkPage = Color(0xFF0B0C11)
-private val DarkCard = Color(0xFF15171F)
-private val DarkCardHi = Color(0xFF1D2029)
-private val DarkOn = Color(0xFFF4F5F9)
-private val DarkSub = Color(0xFF9297A3)
-private val DarkStroke = Color(0xFF262A35)
+// ── 表面（v5.0.0：ZCode 中性灰阶 token，提取自 app.asar Tailwind CSS） ──
+private val DarkPage = Color(0xFF171717)      // neutral-900
+private val DarkCard = Color(0xFF262626)      // neutral-800
+private val DarkCardHi = Color(0xFF303030)    // neutral-700 面板
+private val DarkOn = Color(0xFFE5E5E5)        // neutral-200
+private val DarkSub = Color(0xFFA1A1A1)       // neutral-400
+private val DarkStroke = Color(0xFF2E2E2E)    // neutral-50@10%
 
-private val LightPage = Color(0xFFF2F3F7)
+private val LightPage = Color(0xFFFAFAFA)     // neutral-50
 private val LightCard = Color(0xFFFFFFFF)
-private val LightCardHi = Color(0xFFF3F4F9)
-private val LightOn = Color(0xFF191B23)
-private val LightSub = Color(0xFF7C8090)
-private val LightStroke = Color(0xFFE8EAF1)
+private val LightCardHi = Color(0xFFF5F5F5)   // neutral-100
+private val LightOn = Color(0xFF404040)       // neutral-700
+private val LightSub = Color(0xFF737373)      // neutral-500
+private val LightStroke = Color(0xFFE6E6E6)   // neutral-950@10%
 
 /** 主色容器：主色降饱和落深色表面（选中态底色等） */
 private fun containerOf(accent: Color, dark: Boolean): Color =
@@ -198,10 +198,10 @@ val JzTypography = Typography(
 
 val JzShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(18.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),      // Liquid Glass 大圆角
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 /** 实际生效的深浅模式（强制浅/深色时与系统不一致，语义色据此取值） */

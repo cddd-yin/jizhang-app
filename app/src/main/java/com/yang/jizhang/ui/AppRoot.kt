@@ -10,6 +10,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.togetherWith
+import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -211,6 +213,9 @@ fun AppRoot() {
         }
     }
 
+    // 液态玻璃（v5.0.0，iOS 27 Liquid Glass）：内容作模糊源，底栏作玻璃层
+    val hazeState = remember { dev.chrisbanes.haze.HazeState() }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -225,8 +230,9 @@ fun AppRoot() {
                 Icon(Icons.Rounded.Add, contentDescription = "记一笔", modifier = Modifier.size(26.dp))
             }
         },
-        bottomBar = { JzBottomBar(tab) { tab = it } },
+        bottomBar = { JzBottomBar(tab, hazeState) { tab = it } },
     ) { pad ->
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
         androidx.compose.animation.AnimatedContent(
             targetState = tab,
             transitionSpec = {
@@ -285,6 +291,7 @@ fun AppRoot() {
                 )
             }
         }
+        } // Box(hazeSource)
     }
 
     // 待确认账单弹窗（依次确认）
@@ -420,7 +427,11 @@ internal fun openListenerSettings(context: Context) {
 private data class JzTabItem(val label: String, val icon: ImageVector)
 
 @Composable
-private fun JzBottomBar(selected: Int, onSelect: (Int) -> Unit) {
+private fun JzBottomBar(
+    selected: Int,
+    hazeState: dev.chrisbanes.haze.HazeState,
+    onSelect: (Int) -> Unit,
+) {
     val items = remember {
         listOf(
             JzTabItem("账本", Icons.Outlined.Home),
@@ -429,9 +440,19 @@ private fun JzBottomBar(selected: Int, onSelect: (Int) -> Unit) {
             JzTabItem("设置", Icons.Outlined.Settings),
         )
     }
+    val glass = MaterialTheme.colorScheme.surface
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        // Liquid Glass：半透明底 + 内容真模糊透过
+        color = glass.copy(alpha = 0.72f),
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+        modifier = Modifier.hazeChild(
+            hazeState,
+            style = dev.chrisbanes.haze.HazeStyle(
+                backgroundColor = glass,
+                tints = emptyList<dev.chrisbanes.haze.HazeTint>(),
+                blurRadius = 22.dp,
+            ),
+        ),
     ) {
         Row(
             Modifier

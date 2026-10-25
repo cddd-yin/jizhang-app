@@ -13,8 +13,8 @@ android {
         applicationId = "com.yang.jizhang"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "4.5.2"
+        versionCode = 35
+        versionName = "5.0.0"
     }
 
     buildTypes {
@@ -68,6 +68,9 @@ dependencies {
 
     // 桌面小组件（Jetpack Glance）
     implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    // 液态玻璃毛玻璃（iOS 27 Liquid Glass 风，v5.0.0）
+    implementation("dev.chrisbanes.haze:haze:1.3.1")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
