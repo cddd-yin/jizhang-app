@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,8 +47,9 @@ import java.util.Locale
 
 /**
  * 明细页：月份切换 + 搜索（备注/分类/来源）+ 分类筛选 + 按日分组账单。
- * 日分组头带当日支/收小计，组内为彩色圆徽交易行。
+ * 日分组头带当日支/收小计并吸顶，组内为彩色圆徽交易行。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun RecordsTab(
     txs: List<TxEntity>,
@@ -142,9 +144,13 @@ fun RecordsTab(
                 }
             }
             groups.forEach { g ->
-                item(key = "head_${g.key}") {
+                // 日期头吸顶（v3.13.0）：滚动时贴在列表顶，长列表随时知道在哪天
+                stickyHeader(key = "head_${g.key}") {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 6.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(start = 6.dp, end = 6.dp, top = 12.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -169,6 +175,7 @@ fun RecordsTab(
                         shape = MaterialTheme.shapes.large,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .shadow(3.dp, MaterialTheme.shapes.large)
                             .animateItem(),
                     ) {
                         Column {

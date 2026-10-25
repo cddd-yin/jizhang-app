@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -131,50 +132,69 @@ fun HomeTab(
             }
         }
 
-        // ── 本月结余大卡 ──
+        // ── 本月结余大卡（v3.13.0：主题渐变强调卡，皮肤联动） ──
         item(key = "balance") {
+            val accent = MaterialTheme.colorScheme.primary
+            val onAccent = MaterialTheme.colorScheme.onPrimary
             Surface(
-                color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                color = Color.Transparent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .shadow(8.dp, MaterialTheme.shapes.large),
             ) {
-                Column(Modifier.padding(18.dp)) {
+                Column(
+                    Modifier
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(accent, accent.copy(alpha = 0.72f))
+                            ),
+                            MaterialTheme.shapes.large,
+                        )
+                        .padding(18.dp),
+                ) {
                     Text(
                         "本月结余",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = onAccent.copy(alpha = 0.85f),
                     )
                     Spacer(Modifier.height(4.dp))
                     val balance = incomeTotal - expenseTotal
                     AnimatedAmountText(
                         cents = balance,
-                        fontSize = 34.sp,
-                        color = if (balance >= 0) incomeColor() else expenseColor(),
+                        fontSize = 36.sp,
+                        color = onAccent,
                     )
                     Spacer(Modifier.height(14.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(onAccent.copy(alpha = 0.25f)),
+                    )
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         FlowStat(
-                            icon = { Icon(Icons.Rounded.ArrowUpward, null, tint = incomeColor(), modifier = Modifier.size(16.dp)) },
-                            iconBg = incomeColor().copy(alpha = 0.14f),
+                            icon = { Icon(Icons.Rounded.ArrowUpward, null, tint = onAccent, modifier = Modifier.size(16.dp)) },
+                            iconBg = onAccent.copy(alpha = 0.16f),
                             label = "收入",
                             amount = fmtCents(incomeTotal),
-                            amountColor = incomeColor(),
+                            amountColor = onAccent,
                             modifier = Modifier.weight(1f),
                         )
                         Box(
                             Modifier
                                 .width(0.5.dp)
                                 .height(34.dp)
-                                .background(MaterialTheme.colorScheme.outline),
+                                .background(onAccent.copy(alpha = 0.25f)),
                         )
                         FlowStat(
-                            icon = { Icon(Icons.Rounded.ArrowDownward, null, tint = expenseColor(), modifier = Modifier.size(16.dp)) },
-                            iconBg = expenseColor().copy(alpha = 0.14f),
+                            icon = { Icon(Icons.Rounded.ArrowDownward, null, tint = onAccent, modifier = Modifier.size(16.dp)) },
+                            iconBg = onAccent.copy(alpha = 0.16f),
                             label = "支出",
                             amount = fmtCents(expenseTotal),
-                            amountColor = expenseColor(),
+                            amountColor = onAccent,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -218,7 +238,7 @@ fun HomeTab(
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
                 ) {
                     EmptyState("🪙", "还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
                 }
@@ -228,7 +248,7 @@ fun HomeTab(
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
                 ) {
                     Column {
                         recent.forEachIndexed { i, tx ->
@@ -299,7 +319,7 @@ private fun BudgetCard(
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.large,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().shadow(3.dp, MaterialTheme.shapes.large),
     ) {
         Column(
             Modifier.clickable(onClick = onClick).padding(vertical = 18.dp).fillMaxWidth(),

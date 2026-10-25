@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -462,6 +463,15 @@ private fun JzBottomBar(selected: Int, onSelect: (Int) -> Unit) {
 private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -> Unit) {
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    // 选中弹簧弹跳（v3.13.0）
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+        ),
+        label = "tabScale",
+    )
     Column(
         Modifier
             .weight(1f)
@@ -484,7 +494,17 @@ private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(item.icon, contentDescription = item.label, tint = tint, modifier = Modifier.size(22.dp))
+            Icon(
+                item.icon,
+                contentDescription = item.label,
+                tint = tint,
+                modifier = Modifier
+                    .size(22.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    },
+            )
         }
         Text(
             item.label,
