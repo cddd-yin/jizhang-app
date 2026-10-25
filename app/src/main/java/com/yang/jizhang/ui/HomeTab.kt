@@ -405,6 +405,19 @@ private fun BudgetCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // v5.1.0 内置算法建议行：日均可用 / 期末外推 / 超支预警
+                    val advice = com.yang.jizhang.util.BudgetAdvisor.advise(total.budget, total.spent)
+                    Text(
+                        advice.message,
+                        fontSize = 12.sp,
+                        color = when (advice.pace) {
+                            com.yang.jizhang.util.BudgetAdvisor.Pace.OVER,
+                            com.yang.jizhang.util.BudgetAdvisor.Pace.FAST,
+                            -> expenseColor()
+                            else -> MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 8.dp),
+                    )
                 }
                 // 分类/周期预算条
                 if (cats.isNotEmpty()) {

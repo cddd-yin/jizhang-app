@@ -180,6 +180,19 @@ fun BudgetManageScreen(
                                             color = if (spent > b.amountCents) expenseColor() else MaterialTheme.colorScheme.primary,
                                         )
                                     }
+                                    // v5.1.0 内置算法建议（口径同 Firefly III left-to-spend + 外推）
+                                    val advice = com.yang.jizhang.util.BudgetAdvisor.advise(b, spent)
+                                    Text(
+                                        advice.message,
+                                        fontSize = 11.sp,
+                                        color = when (advice.pace) {
+                                            com.yang.jizhang.util.BudgetAdvisor.Pace.OVER,
+                                            com.yang.jizhang.util.BudgetAdvisor.Pace.FAST,
+                                            -> expenseColor()
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
                                     Spacer(Modifier.height(6.dp))
                                     val frac = if (b.amountCents > 0) (spent.toFloat() / b.amountCents).coerceIn(0f, 1f) else 0f
                                     val over = spent > b.amountCents

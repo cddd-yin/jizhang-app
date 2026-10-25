@@ -59,13 +59,22 @@ object ChannelIds {
         ctx.getSystemService(NotificationManager::class.java)?.notify(id, n)
     }
 
-    /** 自动记账成功（低打扰，点击进 App） */
-    fun autoRecorded(ctx: Context, cents: Long, merchant: String?, channel: String, income: Boolean, txId: Long) {
+    /** 自动记账成功（低打扰，点击进 App）；budgetHint 为预算建议短句（v5.1.0） */
+    fun autoRecorded(
+        ctx: Context,
+        cents: Long,
+        merchant: String?,
+        channel: String,
+        income: Boolean,
+        txId: Long,
+        budgetHint: String? = null,
+    ) {
         ensure(ctx)
         val amount = "¥%.2f".format(cents / 100.0)
         val detail = buildString {
             append(channel.ifBlank { "自动记账" })
             if (!merchant.isNullOrBlank()) append(" · $merchant")
+            if (budgetHint != null) append("\n预算：$budgetHint")
         }
         val n = NotificationCompat.Builder(ctx, AUTO_RECORD)
             .setSmallIcon(android.R.drawable.stat_notify_more)

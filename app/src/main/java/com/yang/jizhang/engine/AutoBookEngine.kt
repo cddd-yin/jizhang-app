@@ -55,9 +55,32 @@ object AutoBookEngine {
         }
         Log.i(TAG, "recorded id=$id ${bill.amountCents} ${if (bill.isIncome) "income" else "expense"} ${bill.channel}")
 
-        runCatching { ChannelIds.autoRecorded(app, bill.amountCents, bill.merchant, bill.channel, bill.isIncome, id) }
+        // v5.1.0：入账即判预算状态，通知带剩余建议
+        val hint = if (!bill.isIncome) budgetHintFor(app, category) else null
+        runCatching { ChannelIds.autoRecorded(app, bill.amountCents, bill.merchant, bill.channel, bill.isIncome, id, hint) }
         BudgetAlertHelper.checkAsync(app)
         com.yang.jizhang.widget.WidgetSync.refreshAsync(app)
+    }
+
+    /** 找受影响预算（分类优先于总预算）并生成建议短句 */
+    private suspend fun budgetHintFor(app: Context, category: String): String? {
+        return try {
+            val budgets = com.yang.jizhang.data.AppDatabase.get(app).budgetDao().getAllOnce()
+                .filter { it.enabled }
+            val budget = budgets.firstOrNull { it.category == category }
+                ?: budgets.firstOrNull { it.category.isEmpty() }
+                ?: return null
+            val now = System.currentTimeMillis()
+            val win = com.yang.jizhang.util.Periods.currentWindow(budget.period, now)
+            val spent = com.yang.jizhang.data.AppDatabase.get(app).txDao()
+                .getByTimeRangeOnce(win[0], now)
+                .filter { !it.isIncome }
+                .filter { budget.category.isEmpty() || it.category == budget.category }
+                .sumOf { it.amountCents }
+            com.yang.jizhang.util.BudgetAdvisor.advise(budget, spent, now).message
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** 待确认账单被用户确认后入库（UI 调用） */
