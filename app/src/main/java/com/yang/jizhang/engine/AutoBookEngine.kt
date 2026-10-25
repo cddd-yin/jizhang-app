@@ -31,7 +31,7 @@ object AutoBookEngine {
         }
 
         val dao = (app as JizhangApp).db.txDao()
-        if (DuplicateGuard.findDuplicate(dao, bill, System.currentTimeMillis()) != null) {
+        if (DuplicateGuard.findDuplicate(dao, bill, eventTime = postTime) != null) {
             Log.d(TAG, "duplicate skipped: ${bill.amountCents} ${bill.channel}")
             return
         }
