@@ -85,6 +85,8 @@ fun AppRoot() {
     // ── 主题（v3.7.0：5 套预设 × 3 档深浅，设置页即点即生效并落盘） ──
     var themePreset by remember { mutableStateOf(ThemePrefs.preset(context)) }
     var themeMode by remember { mutableStateOf(ThemePrefs.mode(context)) }
+    var themeStyle by remember { mutableStateOf(ThemePrefs.style(context)) }
+    var customSeed by remember { mutableStateOf(ThemePrefs.customSeed(context)) }
 
     // ── 全局状态 ──
     val today = remember { Calendar.getInstance() }
@@ -114,7 +116,7 @@ fun AppRoot() {
         (context as? MainActivity)?.applyStatusBarStyle(darkTheme)
         onDispose { }
     }
-    JizhangTheme(darkTheme = darkTheme, preset = themePreset) {
+    JizhangTheme(darkTheme = darkTheme, preset = themePreset, style = themeStyle, customSeed = customSeed) {
 
     // ── 交互基础（v3.3.0）──
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -235,7 +237,7 @@ fun AppRoot() {
                 Icon(Icons.Rounded.Add, contentDescription = "记一笔", modifier = Modifier.size(26.dp))
             }
         },
-        bottomBar = { JzBottomBar(tab, hazeState) { tab = it } },
+        bottomBar = { JzBottomBar(tab, hazeState, themeStyle) { tab = it } },
     ) { pad ->
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
         androidx.compose.animation.AnimatedContent(
@@ -287,10 +289,21 @@ fun AppRoot() {
                     onOpenRecurring = { showRecurring = true },
                     themePreset = themePreset,
                     themeMode = themeMode,
+                    themeStyle = themeStyle,
+                    customSeed = customSeed,
                     onThemeChange = { p, m ->
                         themePreset = p
                         themeMode = m
                         ThemePrefs.save(context, p, m)
+                        runCatching { com.yang.jizhang.widget.WidgetSync.refreshAsync(context) }
+                    },
+                    onStyleChange = { s ->
+                        themeStyle = s
+                        ThemePrefs.saveStyle(context, s)
+                    },
+                    onCustomSeed = { argb ->
+                        customSeed = argb
+                        ThemePrefs.saveCustomSeed(context, argb)
                         runCatching { com.yang.jizhang.widget.WidgetSync.refreshAsync(context) }
                     },
                 )
@@ -435,6 +448,7 @@ private data class JzTabItem(val label: String, val icon: ImageVector)
 private fun JzBottomBar(
     selected: Int,
     hazeState: dev.chrisbanes.haze.HazeState,
+    style: JzStyle = JzStyle.GLASS,
     onSelect: (Int) -> Unit,
 ) {
     val items = remember {
@@ -447,17 +461,19 @@ private fun JzBottomBar(
     }
     val glass = MaterialTheme.colorScheme.surface
     Surface(
-        // Liquid Glass：半透明底 + 内容真模糊透过
-        color = glass.copy(alpha = 0.72f),
+        // Liquid Glass：玻璃档半透明+真模糊；紧凑档实底省电（v5.2）
+        color = if (style == JzStyle.GLASS) glass.copy(alpha = 0.72f) else glass,
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
-        modifier = Modifier.hazeChild(
-            hazeState,
-            style = dev.chrisbanes.haze.HazeStyle(
-                backgroundColor = glass,
-                tints = emptyList<dev.chrisbanes.haze.HazeTint>(),
-                blurRadius = 22.dp,
-            ),
-        ),
+        modifier = if (style == JzStyle.GLASS) {
+            Modifier.hazeChild(
+                hazeState,
+                style = dev.chrisbanes.haze.HazeStyle(
+                    backgroundColor = glass,
+                    tints = emptyList<dev.chrisbanes.haze.HazeTint>(),
+                    blurRadius = 22.dp,
+                ),
+            )
+        } else Modifier,
     ) {
         Row(
             Modifier

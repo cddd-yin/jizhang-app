@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -86,12 +87,17 @@ fun SettingsTab(
     onOpenRecurring: () -> Unit,
     themePreset: JzPreset,
     themeMode: JzMode,
+    themeStyle: JzStyle,
+    customSeed: Int?,
     onThemeChange: (JzPreset, JzMode) -> Unit,
+    onStyleChange: (JzStyle) -> Unit,
+    onCustomSeed: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var showCategoryManage by remember { mutableStateOf(false) }
+    var showColorPicker by remember { mutableStateOf(false) }
 
     var listenerEnabled by remember { mutableStateOf(ListenerHealth.isEnabledInSettings(context)) }
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
@@ -252,6 +258,25 @@ fun SettingsTab(
                     }
                 }
                 Spacer(Modifier.height(16.dp))
+                Text("界面风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    JzStyle.entries.forEach { s ->
+                        ModeCell(
+                            label = s.label,
+                            selected = themeStyle == s,
+                            modifier = Modifier.weight(1f),
+                        ) { onStyleChange(s) }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    themeStyle.desc,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Spacer(Modifier.height(16.dp))
                 Text("配色风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(10.dp))
                 // 2 行 × 3 列主题色卡（当前主色描边高亮，即点即生效）
@@ -262,7 +287,11 @@ fun SettingsTab(
                                 preset = p,
                                 selected = themePreset == p,
                                 modifier = Modifier.weight(1f),
-                            ) { onThemeChange(p, themeMode) }
+                                seedColor = customSeed?.let { Color(it) },
+                            ) {
+                                if (p == JzPreset.CUSTOM) showColorPicker = true
+                                else onThemeChange(p, themeMode)
+                            }
                         }
                         repeat(3 - rowPresets.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -375,6 +404,17 @@ fun SettingsTab(
     if (showCategoryManage) {
         CategoryManageDialog(onClose = { showCategoryManage = false })
     }
+    if (showColorPicker) {
+        ColorPickerDialog(
+            currentSeed = customSeed,
+            onPick = { argb ->
+                onCustomSeed(argb)
+                onThemeChange(JzPreset.CUSTOM, themeMode)
+                showColorPicker = false
+            },
+            onDismiss = { showColorPicker = false },
+        )
+    }
 }
 
 @Composable
@@ -415,6 +455,7 @@ private fun PresetCard(
     preset: JzPreset,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    seedColor: Color? = null,
     onClick: () -> Unit,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -450,18 +491,22 @@ private fun PresetCard(
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(
-                    if (preset == JzPreset.MATERIAL_YOU) {
-                        // Material You：四色环形示意「跟随系统壁纸」
-                        androidx.compose.ui.graphics.Brush.sweepGradient(
-                            listOf(
-                                Color(0xFF6750A4), Color(0xFF00897B),
-                                Color(0xFFEF6C00), Color(0xFFC2185B), Color(0xFF6750A4),
+                    when {
+                        preset == JzPreset.MATERIAL_YOU ->
+                            androidx.compose.ui.graphics.Brush.sweepGradient(
+                                listOf(
+                                    Color(0xFF6750A4), Color(0xFF00897B),
+                                    Color(0xFFEF6C00), Color(0xFFC2185B), Color(0xFF6750A4),
+                                )
                             )
-                        )
-                    } else {
-                        androidx.compose.ui.graphics.Brush.linearGradient(
-                            listOf(preset.accentLight, preset.accentDark)
-                        )
+                        preset == JzPreset.CUSTOM && seedColor != null ->
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(seedColor, deriveAccentsFromSeed(seedColor.toArgb()).first)
+                            )
+                        else ->
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(preset.accentLight, preset.accentDark)
+                            )
                     }
                 ),
             contentAlignment = Alignment.Center,

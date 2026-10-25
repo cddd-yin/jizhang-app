@@ -27,12 +27,13 @@ import com.yang.jizhang.R
 
 enum class JzPreset(
     val label: String,
-    /** 深色模式主色（MATERIAL_YOU 为占位，实际取系统动态色） */
+    /** 深色模式主色（MATERIAL_YOU 为占位实际取系统动态色；CUSTOM 由种子色派生） */
     val accentDark: Color,
     /** 浅色模式主色 */
     val accentLight: Color,
 ) {
     MATERIAL_YOU("动态取色", Color(0xFF6750A4), Color(0xFF6750A4)), // Material You（Android 12+ 壁纸取色，官方设计语言）
+    CUSTOM("自定义", Color(0xFF7C7C8A), Color(0xFF5B5B66)),        // v5.2 用户自选种子色派生
     SKY("天码", Color(0xFF00A6F4), Color(0xFF0084D1)),        // v5.0 默认 · ZCode 天蓝（sky-500/sky-600）
     DEEP_SEA("深海", Color(0xFF8B8CF8), Color(0xFF5A5BD8)),   // 藤紫
     MINT("薄荷", Color(0xFF3DDCB4), Color(0xFF0FA968)),       // 薄荷绿
@@ -45,10 +46,31 @@ enum class JzMode(val label: String) {
     SYSTEM("跟随系统"), LIGHT("浅色"), DARK("深色"),
 }
 
+/** 风格方案（v5.2.0）：圆角与玻璃层的组合档位 */
+enum class JzStyle(val label: String, val desc: String) {
+    GLASS("玻璃", "大圆角 + 毛玻璃底栏"),
+    COMPACT("紧凑", "小圆角 + 实底底栏，更省电"),
+}
+
+/** 从种子色派生深/浅两档主色（HSV：深色提亮保可读，浅色压深保对比） */
+fun deriveAccentsFromSeed(seedArgb: Int): Pair<Color, Color> {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(seedArgb, hsv)
+    val dark = android.graphics.Color.HSVToColor(
+        floatArrayOf(hsv[0], (hsv[1] * 0.85f).coerceAtMost(0.9f), 0.76f),
+    )
+    val light = android.graphics.Color.HSVToColor(
+        floatArrayOf(hsv[0], (hsv[1] * 0.90f).coerceAtMost(0.95f), 0.52f),
+    )
+    return Color(dark.toInt()) to Color(light.toInt())
+}
+
 /** 主题偏好持久化（SharedPreferences 轻量存取） */
 object ThemePrefs {
     private const val KEY_PRESET = "theme_preset"
     private const val KEY_MODE = "theme_mode"
+    private const val KEY_STYLE = "theme_style"
+    private const val KEY_SEED = "theme_custom_seed"
 
     fun preset(context: Context): JzPreset =
         runCatching {
@@ -66,12 +88,35 @@ object ThemePrefs {
             )
         }.getOrDefault(JzMode.SYSTEM)
 
+    fun style(context: Context): JzStyle =
+        runCatching {
+            JzStyle.valueOf(
+                context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+                    .getString(KEY_STYLE, null) ?: JzStyle.GLASS.name
+            )
+        }.getOrDefault(JzStyle.GLASS)
+
+    /** 自定义种子色（ARGB），未设置返回 null */
+    fun customSeed(context: Context): Int? =
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .takeIf { it.contains(KEY_SEED) }?.getInt(KEY_SEED, 0)
+
     fun save(context: Context, preset: JzPreset, mode: JzMode) {
         context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_PRESET, preset.name)
             .putString(KEY_MODE, mode.name)
             .apply()
+    }
+
+    fun saveStyle(context: Context, style: JzStyle) {
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .edit().putString(KEY_STYLE, style.name).apply()
+    }
+
+    fun saveCustomSeed(context: Context, argb: Int) {
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .edit().putInt(KEY_SEED, argb).apply()
     }
 }
 
@@ -119,13 +164,25 @@ private fun Color.compositeOverDark(): Color =
         blue = blue * 0.16f + DarkCardHi.blue * 0.84f,
     )
 
-private fun colors(preset: JzPreset, dark: Boolean) = if (dark) {
-    darkColorScheme(
-        primary = preset.accentDark,
-        onPrimary = if (preset == JzPreset.AMBER || preset == JzPreset.MINT) Color(0xFF10130E) else Color.White,
-        primaryContainer = containerOf(preset.accentDark, true),
-        onPrimaryContainer = preset.accentDark,
-        secondary = DarkCard,
+private fun luma(c: Color): Float = 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue
+
+private fun colors(
+    preset: JzPreset,
+    dark: Boolean,
+    accentDarkOverride: Color? = null,
+    accentLightOverride: Color? = null,
+): androidx.compose.material3.ColorScheme {
+    val accentD = accentDarkOverride ?: preset.accentDark
+    val accentL = accentLightOverride ?: preset.accentLight
+    // 亮色主色（黄/亮绿系）配深前景字，其余配白字
+    val onAccentFor = if (luma(if (dark) accentD else accentL) > 0.62f) Color(0xFF10130E) else Color.White
+    return if (dark) {
+        darkColorScheme(
+            primary = accentD,
+            onPrimary = onAccentFor,
+            primaryContainer = containerOf(accentD, true),
+            onPrimaryContainer = accentD,
+            secondary = DarkCard,
         onSecondary = DarkOn,
         secondaryContainer = DarkCardHi,
         onSecondaryContainer = DarkOn,
@@ -146,10 +203,10 @@ private fun colors(preset: JzPreset, dark: Boolean) = if (dark) {
     )
 } else {
     lightColorScheme(
-        primary = preset.accentLight,
-        onPrimary = Color.White,
-        primaryContainer = containerOf(preset.accentLight, false),
-        onPrimaryContainer = preset.accentLight,
+        primary = accentL,
+        onPrimary = onAccentFor,
+        primaryContainer = containerOf(accentL, false),
+        onPrimaryContainer = accentL,
         secondary = LightCard,
         onSecondary = LightOn,
         secondaryContainer = LightCardHi,
@@ -168,7 +225,8 @@ private fun colors(preset: JzPreset, dark: Boolean) = if (dark) {
         onError = Color.White,
         errorContainer = Color(0xFFFDE9E9),
         onErrorContainer = Color(0xFF7F1D1D),
-    )
+        )
+    }
 }
 
 // ── 字体 ──
@@ -196,13 +254,24 @@ val JzTypography = Typography(
     labelSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 10.sp),
 )
 
-val JzShapes = Shapes(
+val JzShapesGlass = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
     large = RoundedCornerShape(22.dp),      // Liquid Glass 大圆角
     extraLarge = RoundedCornerShape(28.dp),
 )
+
+val JzShapesCompact = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(14.dp),
+    extraLarge = RoundedCornerShape(18.dp),
+)
+
+/** 兼容旧名 */
+val JzShapes = JzShapesGlass
 
 /** 实际生效的深浅模式（强制浅/深色时与系统不一致，语义色据此取值） */
 val LocalJzDark = androidx.compose.runtime.staticCompositionLocalOf { true }
@@ -224,17 +293,19 @@ fun accentColor(): Color = MaterialTheme.colorScheme.primary
 fun JizhangTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     preset: JzPreset = JzPreset.DEEP_SEA,
+    style: JzStyle = JzStyle.GLASS,
+    customSeed: Int? = null,
     content: @Composable () -> Unit,
 ) {
-    // Material You（v4.1.0）：Android 12+ 整套配色直接取系统动态色（官方 API），
-    // 低版本选了动态取色则回退默认预设
+    // Material You（v4.1.0）：Android 12+ 整套配色直接取系统动态色（官方 API）
     val scheme = if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT >= 31) {
         val ctx = androidx.compose.ui.platform.LocalContext.current
-        if (darkTheme) {
-            androidx.compose.material3.dynamicDarkColorScheme(ctx)
-        } else {
-            androidx.compose.material3.dynamicLightColorScheme(ctx)
-        }
+        if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
+        else androidx.compose.material3.dynamicLightColorScheme(ctx)
+    } else if (preset == JzPreset.CUSTOM && customSeed != null) {
+        // v5.2：自定义种子色派生（HSV：深色提亮 / 浅色压深）
+        val (dark, light) = deriveAccentsFromSeed(customSeed)
+        colors(JzPreset.CUSTOM, darkTheme, dark, light)
     } else {
         colors(preset, darkTheme)
     }
@@ -242,7 +313,7 @@ fun JizhangTheme(
         MaterialTheme(
             colorScheme = scheme,
             typography = JzTypography,
-            shapes = JzShapes,
+            shapes = if (style == JzStyle.GLASS) JzShapesGlass else JzShapesCompact,
             content = content,
         )
     }
