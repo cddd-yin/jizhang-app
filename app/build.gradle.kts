@@ -13,8 +13,8 @@ android {
         applicationId = "com.yang.jizhang"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "3.8.0"
+        versionCode = 19
+        versionName = "3.9.0"
     }
 
     buildTypes {
@@ -25,6 +25,17 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // v3.9.0：用 debug keystore 签 release（与历史 debug 包同签名，可直接覆盖安装升级）。
+            // 密钥文件不存在（换机构建）时跳过，产物为未签名 APK，自行签名即可。
+            val debugKs = File(System.getProperty("user.home") ?: ".", ".android/debug.keystore")
+            if (debugKs.exists()) {
+                signingConfig = signingConfigs.create("releaseDebug") {
+                    storeFile = debugKs
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                }
+            }
         }
     }
 

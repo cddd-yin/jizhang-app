@@ -344,6 +344,8 @@ fun BarChart(
     val sub = MaterialTheme.colorScheme.onSurfaceVariant
     val axis = MaterialTheme.colorScheme.outline
     val measurer = rememberTextMeasurer()
+    // 标签布局结果缓存（v3.9.0：避免动画每帧重复 measure）
+    val labels = remember(data) { data.map { measurer.measure(it.label, TextStyle(fontSize = 11.sp, color = sub)) } }
     val grow = remember { androidx.compose.animation.core.Animatable(0f) }
     androidx.compose.runtime.LaunchedEffect(data) {
         grow.snapTo(0f)
@@ -368,10 +370,7 @@ fun BarChart(
                 size = Size(barW, barH.coerceAtLeast(if (e.value > 0) 6f else 2f)),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2.4f, barW / 2.4f),
             )
-            val label = measurer.measure(
-                e.label,
-                TextStyle(fontSize = 11.sp, color = sub),
-            )
+            val label = labels[i]
             drawText(
                 label,
                 topLeft = Offset(x + (barW - label.size.width) / 2, chartH + 8f),
