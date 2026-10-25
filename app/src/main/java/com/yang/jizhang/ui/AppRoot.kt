@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +93,33 @@ fun AppRoot() {
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
+    // ── 交互基础（v3.3.0）──
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    // 系统返回键：优先关闭弹层（记账页/预算管理/周期记账），而不是退出 App
+    androidx.activity.compose.BackHandler(
+        enabled = adding || editing != null || showBudgets || showRecurring
+    ) {
+        when {
+            adding || editing != null -> { adding = false; editing = null; shareDraft = null }
+            showBudgets -> showBudgets = false
+            showRecurring -> showRecurring = false
+        }
+    }
+    // 左滑删除账单 + Snackbar 撤销
+    val deleteWithUndo: (TxEntity) -> Unit = { tx ->
+        scope.launch {
+            runCatching { dao.delete(tx) }
+            val result = snackbarHostState.showSnackbar(
+                message = "已删除「${tx.note.ifBlank { tx.category }}」",
+                actionLabel = "撤销",
+                duration = androidx.compose.material3.SnackbarDuration.Short,
+            )
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                runCatching { dao.insertIgnore(tx) }
+            }
+        }
+    }
+
     // 周期记账补账：打开 App 即补（含错过的期次），之后每 6 小时复查
     LaunchedEffect(Unit) {
         while (true) {
@@ -157,6 +185,7 @@ fun AppRoot() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { adding = true },
@@ -169,38 +198,55 @@ fun AppRoot() {
         },
         bottomBar = { JzBottomBar(tab) { tab = it } },
     ) { pad ->
-        when (tab) {
-            0 -> HomeTab(
-                dao = dao,
-                budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
-                contentPad = pad,
-                listenerState = listenerState.value,
-                onEdit = { editing = it },
-                onGoRecords = { tab = 1 },
-                onOpenBudgets = { showBudgets = true },
-            )
-            1 -> RecordsTab(
-                txs = txs,
-                contentPad = pad,
-                year = year,
-                month = month,
-                onMonthChange = { y, m -> year = y; month = m },
-                onItemClick = { editing = it },
-            )
-            2 -> StatsTab(
-                txs = txs,
-                contentPad = pad,
-                dao = dao,
-                year = year,
-                month = month,
-                onMonthChange = { y, m -> year = y; month = m },
-            )
-            else -> SettingsTab(
-                contentPad = pad,
-                listenerState = listenerState.value,
-                onExport = { showExport = true },
-                onOpenRecurring = { showRecurring = true },
-            )
+        androidx.compose.animation.AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                (
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
+                        androidx.compose.animation.slideInVertically(
+                            androidx.compose.animation.core.tween(220),
+                        ) { it / 22 }
+                    ).togetherWith(
+                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)),
+                )
+            },
+            label = "tabSwitch",
+        ) { t ->
+            when (t) {
+                0 -> HomeTab(
+                    dao = dao,
+                    budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
+                    contentPad = pad,
+                    listenerState = listenerState.value,
+                    onEdit = { editing = it },
+                    onGoRecords = { tab = 1 },
+                    onOpenBudgets = { showBudgets = true },
+                    onDelete = deleteWithUndo,
+                )
+                1 -> RecordsTab(
+                    txs = txs,
+                    contentPad = pad,
+                    year = year,
+                    month = month,
+                    onMonthChange = { y, m -> year = y; month = m },
+                    onItemClick = { editing = it },
+                    onDelete = deleteWithUndo,
+                )
+                2 -> StatsTab(
+                    txs = txs,
+                    contentPad = pad,
+                    dao = dao,
+                    year = year,
+                    month = month,
+                    onMonthChange = { y, m -> year = y; month = m },
+                )
+                else -> SettingsTab(
+                    contentPad = pad,
+                    listenerState = listenerState.value,
+                    onExport = { showExport = true },
+                    onOpenRecurring = { showRecurring = true },
+                )
+            }
         }
     }
 
@@ -373,11 +419,15 @@ private fun JzBottomBar(selected: Int, onSelect: (Int) -> Unit) {
 @Composable
 private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -> Unit) {
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Column(
         Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable(onClick = onClick),
+            .clickable {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onClick()
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

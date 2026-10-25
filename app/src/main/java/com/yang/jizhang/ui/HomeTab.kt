@@ -61,6 +61,7 @@ fun HomeTab(
     onEdit: (TxEntity) -> Unit,
     onGoRecords: () -> Unit,
     onOpenBudgets: () -> Unit,
+    onDelete: (TxEntity) -> Unit,
 ) {
     val context = LocalContext.current
     val now = remember { Calendar.getInstance() }
@@ -132,11 +133,9 @@ fun HomeTab(
                     )
                     Spacer(Modifier.height(4.dp))
                     val balance = incomeTotal - expenseTotal
-                    Text(
-                        fmtCents(balance),
+                    AnimatedAmountText(
+                        cents = balance,
                         fontSize = 34.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.5).sp,
                         color = if (balance >= 0) incomeColor() else expenseColor(),
                     )
                     Spacer(Modifier.height(14.dp))
@@ -226,6 +225,7 @@ fun HomeTab(
                                 showDivider = i < recent.lastIndex,
                                 onClick = { onEdit(tx) },
                                 subLabel = day,
+                                onDelete = { onDelete(tx) },
                             )
                         }
                     }

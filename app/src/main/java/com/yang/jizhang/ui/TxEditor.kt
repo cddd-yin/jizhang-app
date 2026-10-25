@@ -287,11 +287,15 @@ private fun SegOption(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Row(
         modifier
             .clip(RoundedCornerShape(50))
             .background(if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
-            .clickable(onClick = onClick)
+            .clickable {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -319,8 +323,12 @@ private fun CategoryPick(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Column(
-        modifier.clickable(onClick = onClick),
+        modifier.clickable {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+            onClick()
+        },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -345,13 +353,14 @@ private fun CategoryPick(
     }
 }
 
-/** 键盘：3×4 数字区 + 右列 ⌫（详见布局：右侧独立列） */
+/** 键盘：3×4 数字区 + 退格（按压带触感反馈） */
 @Composable
 private fun Keypad(
     onDigit: (Char) -> Unit,
     onDot: () -> Unit,
     onBackspace: () -> Unit,
 ) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val keys = listOf(
         listOf('1', '2', '3'),
         listOf('4', '5', '6'),
@@ -369,6 +378,7 @@ private fun Keypad(
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .clickable {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                                 when (k) {
                                     '.' -> onDot()
                                     '⌫' -> onBackspace()

@@ -5,21 +5,27 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import kotlin.math.roundToLong
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -166,39 +172,64 @@ fun StatusBanner(
 
 // ── 交易行（明细/最近列表通用） ──
 
+/**
+ * 交易行。onDelete 非空时支持左滑删除（v3.3.0 交互）。
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun TxRow(
     tx: TxEntity,
     showDivider: Boolean,
     onClick: () -> Unit,
     subLabel: String = "${tx.category} · ${tx.source}",
+    onDelete: (() -> Unit)? = null,
 ) {
     Column {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CategoryCircle(tx.category)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    tx.note.ifBlank { tx.category },
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(subLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(
-                fmtSigned(tx.amountCents, tx.isIncome),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
+        if (onDelete != null) {
+            val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    if (value == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) {
+                        onDelete()
+                        true
+                    } else false
+                },
             )
+            androidx.compose.material3.SwipeToDismissBox(
+                state = dismissState,
+                enableDismissFromStartToEnd = false,
+                backgroundContent = {
+                    Row(
+                        Modifier
+                            .fillMaxSize()
+                            .background(expenseColor().copy(alpha = 0.14f))
+                            .padding(end = 20.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("删除", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = expenseColor())
+                    }
+                },
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onClick)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TxRowContent(tx, subLabel)
+                }
+            }
+        } else {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TxRowContent(tx, subLabel)
+            }
         }
         if (showDivider) {
             Box(
@@ -210,6 +241,28 @@ fun TxRow(
             )
         }
     }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.TxRowContent(tx: TxEntity, subLabel: String) {
+    CategoryCircle(tx.category)
+    Spacer(Modifier.width(12.dp))
+    Column(Modifier.weight(1f)) {
+        Text(
+            tx.note.ifBlank { tx.category },
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(subLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Text(
+        fmtSigned(tx.amountCents, tx.isIncome),
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 // ── 空状态 ──
@@ -243,11 +296,47 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+// ── 滚动数字（金额变化时平滑滚动，v3.3.0） ──
+
+@Composable
+fun AnimatedAmountText(
+    cents: Long,
+    modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = 34.sp,
+    fontWeight: FontWeight = FontWeight.SemiBold,
+    letterSpacing: androidx.compose.ui.unit.TextUnit = (-0.5).sp,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    // 分→显示值的 Long 转换器（animation-core 无内置 Long converter）
+    val centsConverter = remember {
+        object : androidx.compose.animation.core.TwoWayConverter<Long, androidx.compose.animation.core.AnimationVector1D> {
+            override val convertToVector: (Long) -> androidx.compose.animation.core.AnimationVector1D = {
+                androidx.compose.animation.core.AnimationVector1D(it.toFloat())
+            }
+            override val convertFromVector: (androidx.compose.animation.core.AnimationVector1D) -> Long = {
+                it.value.roundToLong()
+            }
+        }
+    }
+    val animated = remember { Animatable(cents, centsConverter) }
+    androidx.compose.runtime.LaunchedEffect(cents) {
+        animated.animateTo(cents, tween(800, easing = FastOutSlowInEasing))
+    }
+    Text(
+        fmtCents(animated.value),
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        letterSpacing = letterSpacing,
+        color = color,
+        modifier = modifier,
+    )
+}
+
 // ── 图表数据 ──
 
 data class ChartEntry(val label: String, val value: Double, val color: Color)
 
-/** 柱状图：圆角柱 + 月份标签，当前月满色、其余降透明 */
+/** 柱状图：圆角柱 + 月份标签，当前期满色、其余降透明；出现/数据变化时柱子生长动画（v3.3.0） */
 @Composable
 fun BarChart(
     data: List<ChartEntry>,
@@ -256,6 +345,11 @@ fun BarChart(
     val sub = MaterialTheme.colorScheme.onSurfaceVariant
     val axis = MaterialTheme.colorScheme.outline
     val measurer = rememberTextMeasurer()
+    val grow = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(data) {
+        grow.snapTo(0f)
+        grow.animateTo(1f, androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
     Canvas(modifier) {
         if (data.isEmpty()) return@Canvas
         val maxV = data.maxOf { it.value }.coerceAtLeast(1.0)
@@ -266,7 +360,7 @@ fun BarChart(
         // 基线
         drawLine(axis, Offset(0f, chartH), Offset(size.width, chartH), 1.5f)
         data.forEachIndexed { i, e ->
-            val hRatio = (e.value / maxV).toFloat()
+            val hRatio = (e.value / maxV).toFloat() * grow.value
             val barH = (chartH - 26f) * hRatio
             val x = gap + i * (barW + gap)
             drawRoundRect(
@@ -320,7 +414,7 @@ fun PieChart(
     }
 }
 
-/** 半圆预算仪表：中间显示剩余/超支（Expenso Budget Overview 同款） */
+/** 半圆预算仪表：中间显示剩余/超支（Expenso Budget Overview 同款）；进度变化带补间动画（v3.3.0） */
 @Composable
 fun BudgetGauge(
     usedFraction: Float,
@@ -328,6 +422,13 @@ fun BudgetGauge(
     trackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     progressColor: Color = MaterialTheme.colorScheme.primary,
 ) {
+    val animated = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(usedFraction) {
+        animated.animateTo(
+            usedFraction.coerceIn(0f, 1f),
+            androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        )
+    }
     Canvas(modifier) {
         val strokeW = size.minDimension * 0.14f
         val inset = strokeW / 2 + 2f
@@ -343,7 +444,7 @@ fun BudgetGauge(
             size = arcSize,
             style = Stroke(strokeW, cap = cap),
         )
-        val frac = usedFraction.coerceIn(0f, 1f)
+        val frac = animated.value
         if (frac > 0.005f) {
             drawArc(
                 color = progressColor,

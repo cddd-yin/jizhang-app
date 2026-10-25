@@ -55,6 +55,7 @@ fun RecordsTab(
     month: Int,
     onMonthChange: (Int, Int) -> Unit,
     onItemClick: (TxEntity) -> Unit,
+    onDelete: (TxEntity) -> Unit,
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var categoryFilter by rememberSaveable { mutableStateOf("") }
@@ -164,11 +165,18 @@ fun RecordsTab(
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
                         shape = MaterialTheme.shapes.large,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem(),
                     ) {
                         Column {
                             g.items.forEachIndexed { i, tx ->
-                                TxRow(tx = tx, showDivider = i < g.items.lastIndex, onClick = { onItemClick(tx) })
+                                TxRow(
+                                    tx = tx,
+                                    showDivider = i < g.items.lastIndex,
+                                    onClick = { onItemClick(tx) },
+                                    onDelete = { onDelete(tx) },
+                                )
                             }
                         }
                     }

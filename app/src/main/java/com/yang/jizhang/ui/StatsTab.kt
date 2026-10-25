@@ -204,11 +204,9 @@ fun StatsTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        (if (balance >= 0) "+" else "-") + fmtMoney(Math.abs(balance)),
+                    AnimatedAmountText(
+                        cents = balance,
                         fontSize = 30.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.5).sp,
                         color = if (balance >= 0) incomeColor() else expenseColor(),
                     )
                     Spacer(Modifier.height(8.dp))
