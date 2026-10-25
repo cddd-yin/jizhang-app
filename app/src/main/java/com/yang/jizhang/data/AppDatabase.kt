@@ -14,6 +14,7 @@ object Source {
     const val QQ = "QQ"
     const val IMPORT = "导入"
     const val RECUR = "周期"
+    const val EXTERNAL = "外部"
 }
 
 @Entity(

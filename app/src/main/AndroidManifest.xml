@@ -82,6 +82,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- 外部记账广播（v3.10.0）：Tasker / AutoAccounting 等自动化工具喂单入口 -->
+        <receiver
+            android:name=".notify.ExternalRecordReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.yang.jizhang.action.RECORD" />
+            </intent-filter>
+        </receiver>
+
         <!-- 覆盖安装完成后标记需重新开启通知使用权 -->
         <receiver
             android:name=".notify.keepalive.PackageReplacedReceiver"

@@ -2,6 +2,7 @@ package com.yang.jizhang.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.Animatable
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.notify.keepalive.ListenerStatus
+import java.util.Calendar
 
 /**
  * v3.0.0 共享组件库：分类圆徽 / 月份切换 / 状态横幅 / 交易行 / 图表 / 预算仪表。
@@ -331,7 +334,102 @@ fun AnimatedAmountText(
     )
 }
 
+// ── 消费日历热力图（v3.10.0，GitHub 贡献图风格） ──
+
+/**
+ * 某月按日支出热力：7 列网格（周一为首列），每日方块深浅随当日支出分 5 档。
+ * todayRing：给今日画描边。
+ */
+@Composable
+fun ExpenseCalendar(
+    year: Int,
+    month1: Int,
+    txs: List<TxEntity>,
+    modifier: Modifier = Modifier,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val faint = MaterialTheme.colorScheme.surfaceVariant
+    val daySpend = remember(txs, year, month1) {
+        val cal = Calendar.getInstance()
+        txs.asSequence()
+            .filter { !it.isIncome }
+            .groupBy { tx ->
+                cal.timeInMillis = tx.time
+                cal.get(Calendar.DAY_OF_MONTH)
+            }
+            .mapValues { (_, list) -> list.sumOf { it.amountCents } }
+    }
+    val weeks = remember(year, month1) { buildCalendarGrid(year, month1) }
+    val maxSpend = remember(daySpend) { (daySpend.values.maxOrNull() ?: 0L).coerceAtLeast(1L) }
+    val today = remember { Calendar.getInstance() }
+    val isCurrentMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) + 1 == month1
+    val todayDay = today.get(Calendar.DAY_OF_MONTH)
+
+    Column(modifier) {
+        // 周表头（周一为第一列）
+        Row(Modifier.fillMaxWidth()) {
+            listOf("一", "二", "三", "四", "五", "六", "日").forEach {
+                Text(
+                    it,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        weeks.forEach { week ->
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                week.forEach { day ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .padding(2.dp)
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(
+                                if (day == null) androidx.compose.ui.graphics.Color.Transparent
+                                else if (daySpend[day] == null) faint.copy(alpha = 0.45f)
+                                else accent.copy(alpha = 0.30f + 0.70f * (daySpend[day]!!.toFloat() / maxSpend))
+                            )
+                            .then(
+                                if (isCurrentMonth && day == todayDay) {
+                                    Modifier.border(1.5.dp, accent, RoundedCornerShape(5.dp))
+                                } else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (day != null) {
+                            Text(
+                                "$day",
+                                fontSize = 10.sp,
+                                color = if (daySpend[day] != null && daySpend[day]!! > maxSpend / 2)
+                                    androidx.compose.ui.graphics.Color.White
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 构建某月日历网格：返回周列表（周一为第一列），月初/月末空位为 null */
+private fun buildCalendarGrid(year: Int, month1: Int): List<List<Int?>> {
+    val cal = Calendar.getInstance().apply {
+        set(year, month1 - 1, 1, 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstIso = cal.get(Calendar.DAY_OF_WEEK).let { if (it == Calendar.SUNDAY) 7 else it - 1 }
+    val cells: List<Int?> = List(firstIso - 1) { null } + (1..daysInMonth).toList()
+    val padded = cells + List((7 - cells.size % 7) % 7) { null }
+    return padded.chunked(7)
+}
+
 // ── 图表数据 ──
+
 
 data class ChartEntry(val label: String, val value: Double, val color: Color)
 

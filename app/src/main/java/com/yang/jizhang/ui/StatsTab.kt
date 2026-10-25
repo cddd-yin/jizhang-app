@@ -247,6 +247,123 @@ fun StatsTab(
             }
         }
 
+        // ── 消费日历热力图（v3.10.0，仅月模式） ──
+        if (!isYear) {
+            item(key = "calendar_label") { SectionLabel("消费日历（本月）") }
+            item(key = "calendar_card") {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        ExpenseCalendar(year = year, month1 = month, txs = txs)
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "浅 → 深 = 当日支出由少到多",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "今日加边框",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 月度对比（v3.10.0，仅月模式：本月 vs 上月分类涨跌） ──
+        if (!isYear) {
+            item(key = "compare_label") { SectionLabel("对比上月") }
+            item(key = "compare_card") {
+                val lastMonthRange = remember(year, month) {
+                    val cal = Calendar.getInstance().apply {
+                        set(year, month - 1, 1, 0, 0, 0)
+                        set(Calendar.MILLISECOND, 0)
+                        add(Calendar.MONTH, -1)
+                    }
+                    val s = cal.timeInMillis
+                    cal.add(Calendar.MONTH, 1)
+                    s to cal.timeInMillis
+                }
+                val lastMonthTxs = remember(sixMonthTxs, lastMonthRange) {
+                    sixMonthTxs.filter { it.time in lastMonthRange.first until lastMonthRange.second }
+                }
+                val thisExpense = remember(expense) {
+                    expense.groupBy { it.category }.mapValues { (_, l) -> l.sumOf { it.amountCents } }
+                }
+                val lastExpense = remember(lastMonthTxs) {
+                    lastMonthTxs.filter { !it.isIncome }
+                        .groupBy { it.category }.mapValues { (_, l) -> l.sumOf { it.amountCents } }
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        val thisTotal = thisExpense.values.sum()
+                        val lastTotal = lastExpense.values.sum()
+                        val delta = thisTotal - lastTotal
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("本月支出 ${fmtCents(thisTotal)}", fontSize = 13.sp)
+                                Text("上月支出 ${fmtCents(lastTotal)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(
+                                if (lastTotal == 0L) "上月无记录"
+                                else (if (delta >= 0) "▲ +" else "▼ -") + fmtCents(Math.abs(delta)) +
+                                    "（%+.0f%%".format(if (lastTotal > 0) delta.toFloat() / lastTotal * 100 else 0f) + "）",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (delta > 0) expenseColor() else incomeColor(),
+                            )
+                        }
+                        // 分类涨跌（按差额绝对值排前 6）
+                        val cats = (thisExpense.keys + lastExpense.keys).distinct()
+                        val rows = cats.map { c ->
+                            Triple(c, thisExpense[c] ?: 0L, lastExpense[c] ?: 0L)
+                        }.filter { it.second != it.third }
+                            .sortedByDescending { Math.abs(it.second - it.third) }
+                            .take(6)
+                        if (rows.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outline))
+                            Spacer(Modifier.height(6.dp))
+                            rows.forEach { (cat, now, before) ->
+                                val diff = now - before
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CategoryCircle(cat, size = 28.dp)
+                                    Spacer(Modifier.width(9.dp))
+                                    Text(cat, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                    Text(
+                                        "${fmtCents(before)} → ${fmtCents(now)}",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        (if (diff >= 0) "+" else "-") + fmtMoney(Math.abs(diff)),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (diff > 0) expenseColor() else incomeColor(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── 收入分类占比 ──
         item(key = "pie_label") {
             SectionLabel(if (isYear) "收入分类（本年）" else "收入分类（近 6 个月）")
