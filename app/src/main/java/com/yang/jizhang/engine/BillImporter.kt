@@ -4,9 +4,6 @@ import android.content.Context
 import android.net.Uri
 import com.yang.jizhang.JizhangApp
 import com.yang.jizhang.util.CategoryLearner
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.nio.charset.Charset
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.yang.jizhang.data.Source
@@ -14,39 +11,72 @@ import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.CategoryRules
 
 /**
- * v4.0.0 引擎重写：支付宝/微信账单 CSV 导入（替代旧 CsvImporter）。
- * 表头列映射对象化 + ±2 分钟近邻去重（v3.6 引入的策略保留）。
+ * 账单导入（v5.3.0 起支持多种形式）：支付宝/微信 CSV、任意来源通用 CSV、Excel(.xlsx)。
+ * 统一路径：SheetReader 读行 → 表头自动映射（宽别名）→ 近邻去重入库。
  */
 object BillImporter {
 
-    private val charsets = listOf(Charset.forName("UTF-8"), Charset.forName("GBK"))
+    /** 表头列映射（宽别名：支付宝/微信官方表 + 银行/自建表格常见列名） */
+    private data class Columns(val time: Int, val flow: Int, val amount: Int, val party: Int, val goods: Int, val status: Int) {
+        companion object {
+            fun List<String>.find(vararg keys: String): Int =
+                indexOfFirst { h -> keys.any { h.contains(it) } }
+            fun of(header: List<String>): Columns {
+                val h = header
+                return Columns(
+                    time = h.find("交易时间", "交易日期", "日期", "时间"),
+                    flow = h.find("收/支", "收支", "方向", "类型", "借贷"),
+                    amount = h.find("金额", "发生额", "实付"),
+                    party = h.find("交易对方", "对方", "商户", "对方户名"),
+                    goods = h.find("商品说明", "商品", "备注", "摘要", "描述", "用途"),
+                    status = h.find("交易状态", "当前状态", "状态"),
+                )
+            }
+        }
+    }
 
     suspend fun import(context: Context, uri: Uri, appLabel: String): Int {
-        val text = readText(context, uri) ?: return 0
-        val lines = text.lineSequence().filter { it.isNotBlank() }.toList()
-        val headerIdx = lines.indexOfFirst { it.contains("交易时间") }
+        val rows = when (val r = SheetReader.read(context, uri, uri.lastPathSegment)) {
+            is SheetReader.Result.Ok -> r.rows
+            else -> return 0
+        }
+        val headerIdx = rows.indexOfFirst { row ->
+            row.any { it.contains("交易时间") || it.contains("日期") } &&
+                row.any { it.contains("金额") || it.contains("发生额") || it.contains("实付") }
+        }
         if (headerIdx < 0) return 0
 
-        val cols = Columns.of(splitCsv(lines[headerIdx]))
+        val cols = Columns.of(rows[headerIdx].map { it.trim() })
         if (cols.time < 0 || cols.amount < 0) return 0
 
         val dao = (context.applicationContext as JizhangApp).db.txDao()
         var inserted = 0
         val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
 
-        for (i in headerIdx + 1 until lines.size) {
-            val cell = splitCsv(lines[i])
+        for (i in headerIdx + 1 until rows.size) {
+            val cell = rows[i]
             if (cell.size < 2) continue
-            val status = cell.getOrNull(cols.status).orEmpty()
+            fun cellAt(idx: Int): String = if (idx in cell.indices) cell[idx].trim() else ""
+
+            val status = cellAt(cols.status)
             if (listOf("退款", "还款", "失败", "关闭", "不计收支").any { it in status }) continue
 
-            val time = parseTime(cell.getOrNull(cols.time)) ?: continue
-            val amountCents = parseCents(cell.getOrNull(cols.amount)) ?: continue
+            val time = parseTimeFlexible(cellAt(cols.time)) ?: continue
+            val rawAmount = cellAt(cols.amount)
+            val negative = rawAmount.trim().startsWith("-")
+            val amountCents = parseCents(rawAmount) ?: continue
             if (amountCents <= 0) continue
-            val flow = cell.getOrNull(cols.flow).orEmpty().ifBlank { "支出" }
-            val income = flow.contains("收") && !flow.contains("支")
-            val party = cell.getOrNull(cols.party).orEmpty()
-            val goods = cell.getOrNull(cols.goods).orEmpty()
+
+            val flow = cellAt(cols.flow)
+            val income = when {
+                flow.contains("收") && !flow.contains("支") -> true
+                flow.contains("支") || flow.contains("借") -> false
+                flow.contains("贷") || flow.contains("入") -> true
+                negative -> true // 通用表格：负数金额视为收入
+                else -> false
+            }
+            val party = cellAt(cols.party)
+            val goods = cellAt(cols.goods)
 
             // 近邻去重：±2 分钟内同额同向的非导入记录视为已被实时记过
             val near = dao.getByTimeRangeOnce(time - 120_000, time + 120_000)
@@ -71,72 +101,30 @@ object BillImporter {
         return inserted
     }
 
-    /** 表头列映射 */
-    private data class Columns(val time: Int, val flow: Int, val amount: Int, val party: Int, val goods: Int, val status: Int) {
-        companion object {
-            fun of(header: List<String>): Columns {
-                fun find(vararg keys: String) = header.indexOfFirst { h -> keys.any { h.contains(it) } }
-                return Columns(
-                    time = find("交易时间"),
-                    flow = find("收/支", "收支"),
-                    amount = find("金额"),
-                    party = find("交易对方"),
-                    goods = find("商品说明", "商品", "备注"),
-                    status = find("交易状态", "当前状态"),
-                )
-            }
+    private val timePatterns = listOf(
+        "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy/MM/dd HH:mm:ss", "yyyy/MM/dd HH:mm",
+        "yyyy.MM.dd HH:mm:ss", "yyyy.MM.dd HH:mm", "yyyy-MM-dd", "yyyy/MM/dd", "yyyy.MM.dd",
+    )
+
+    /** 文本日期 + Excel 日期序列号（40000~60000 ≈ 2009-2064）双支持 */
+    private fun parseTimeFlexible(v: String): Long? {
+        val s = v.trim()
+        if (s.isEmpty()) return null
+        s.toDoubleOrNull()?.let { serial ->
+            if (serial in 40000.0..60000.0) return SheetReader.excelSerialToMillis(serial)
         }
-    }
-
-    private fun readText(context: Context, uri: Uri): String? = try {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
-            String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
-        } else {
-            charsets.firstOrNull { cs -> String(bytes, cs).let { it.contains("交易时间") || it.contains("收/支") } }
-                ?.let { String(bytes, it) } ?: String(bytes, charsets.last())
-        }
-    } catch (_: Exception) {
-        null
-    }
-
-    /** 引号内逗号兼容的行切分 */
-    private fun splitCsv(line: String): List<String> {
-        val out = mutableListOf<String>()
-        val sb = StringBuilder()
-        var quote = false
-        var i = 0
-        while (i < line.length) {
-            val c = line[i]
-            when {
-                c == '"' -> {
-                    if (quote && i + 1 < line.length && line[i + 1] == '"') { sb.append('"'); i++ }
-                    else quote = !quote
-                }
-                (c == ',' || c == '\t') && !quote -> { out.add(sb.toString()); sb.clear() }
-                else -> sb.append(c)
-            }
-            i++
-        }
-        out.add(sb.toString())
-        return out
-    }
-
-    private val timePatterns = listOf("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy/MM/dd HH:mm:ss")
-
-    private fun parseTime(s: String?): Long? {
-        val v = s?.trim() ?: return null
         for (p in timePatterns) {
             try {
-                return SimpleDateFormat(p, Locale.CHINA).parse(v)?.time
+                return SimpleDateFormat(p, Locale.CHINA).parse(s)?.time
             } catch (_: Exception) {
             }
         }
         return null
     }
 
-    private fun parseCents(s: String?): Long? {
-        val v = s?.replace("¥", "")?.replace("￥", "")?.replace(",", "")?.trim() ?: return null
-        return v.toDoubleOrNull()?.let { Math.round(it * 100) }
+    private fun parseCents(s: String): Long? {
+        val v = s.replace("¥", "").replace("￥", "").replace(",", "").replace("+", "").trim()
+        val d = v.toDoubleOrNull() ?: return null
+        return Math.round(Math.abs(d) * 100)
     }
 }

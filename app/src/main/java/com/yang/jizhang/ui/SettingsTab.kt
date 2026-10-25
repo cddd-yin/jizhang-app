@@ -310,8 +310,11 @@ fun SettingsTab(
         // ── 数据管理 ──
         SettingsHeader("数据管理")
         SettingsCard {
-            ActionItem(Icons.Outlined.Upload, "导入账单 CSV", "支付宝 / 微信官方导出的账单，自动去重") {
-                importPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
+            ActionItem(Icons.Outlined.Upload, "导入账单（CSV / Excel）", "支付宝/微信官方导出、银行/自建表格：.csv 与 .xlsx 均可，表头自动识别") {
+                importPicker.launch(arrayOf(
+                    "text/csv", "text/comma-separated-values", "text/plain",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "*/*"
+                ))
             }
             CardDivider()
             ActionItem(Icons.Outlined.Download, "导出账单 CSV", "导出本月或全部账单，可分享、可再导入") {
