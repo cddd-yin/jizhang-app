@@ -46,7 +46,9 @@ class ExternalRecordReceiver : BroadcastReceiver() {
         val note = intent.getStringExtra("note")?.takeIf { it.isNotBlank() } ?: "外部记账"
         val type = intent.getStringExtra("type") ?: "expense"
         val isIncome = type.equals("income", true)
-        var category = intent.getStringExtra("category")?.takeIf { it in CategoryRules.ALL_CATEGORIES }
+        var category = intent.getStringExtra("category")
+            ?.takeIf { it in com.yang.jizhang.util.CategoryStore.all(app) }
+            ?: com.yang.jizhang.util.CategoryLearner.hint(app, note)
             ?: CategoryRules.guess(note).takeIf { !isIncome || it != "餐饮美食" }
             ?: "收入进账"
 

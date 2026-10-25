@@ -84,18 +84,27 @@ object CategoryRules {
         ) to "红包转账",
     )
 
-    /** 返回命中的分类名，未命中返回「其他」 */
+    /**
+     * 返回命中的分类名，未命中返回「其他」。
+     * v3.12.0：全规则找**最长命中关键词**（特异性优先）——修复"王者荣耀充值"被
+     * 生活缴费组的短词"充值"抢先命中的一类歧义（同长保持规则组先序）。
+     */
     fun guess(vararg texts: String?): String {
         val joined = texts.filterNotNull().joinToString(" ")
+        var bestLen = -1
+        var best: String? = null
         for ((keywords, category) in RULES) {
             for (kw in keywords) {
-                if (kw in joined) return category
+                if (kw.length > bestLen && kw in joined) {
+                    bestLen = kw.length
+                    best = category
+                }
             }
         }
-        return "其他"
+        return best ?: "其他"
     }
 
-    /** 各分类对应的图标（emoji，简洁直观） */
+    /** 各分类对应的图标（emoji，简洁直观；自定义分类走 🏷️） */
     fun icon(category: String): String = when (category) {
         "餐饮美食" -> "🍜"
         "交通出行" -> "🚌"
@@ -107,7 +116,8 @@ object CategoryRules {
         "收入进账" -> "💰"
         "红包转账" -> "🧧"
         "学习教育" -> "📚"
-        else -> "📦"
+        "其他" -> "📦"
+        else -> "🏷️"
     }
 
     val ALL_CATEGORIES = listOf(

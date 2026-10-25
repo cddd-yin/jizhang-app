@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BatteryChargingFull
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Download
@@ -90,6 +91,7 @@ fun SettingsTab(
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    var showCategoryManage by remember { mutableStateOf(false) }
 
     var listenerEnabled by remember { mutableStateOf(ListenerStatus.isEnabledInSettings(context)) }
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
@@ -313,6 +315,14 @@ fun SettingsTab(
                 learnerSize.intValue = 0
                 android.widget.Toast.makeText(context, "智能分类已重置", android.widget.Toast.LENGTH_SHORT).show()
             }
+            CardDivider()
+            ActionItem(
+                Icons.Outlined.Category,
+                "管理分类",
+                "内置 11 类 + 自定义 ${com.yang.jizhang.util.CategoryStore.custom(context).size} 类，可增删",
+            ) {
+                showCategoryManage = true
+            }
         }
 
         // ── 关于 ──
@@ -360,6 +370,10 @@ fun SettingsTab(
         }
 
         Spacer(Modifier.height(40.dp))
+    }
+
+    if (showCategoryManage) {
+        CategoryManageDialog(onClose = { showCategoryManage = false })
     }
 }
 

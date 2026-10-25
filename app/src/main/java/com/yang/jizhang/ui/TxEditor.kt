@@ -63,6 +63,7 @@ fun TxEditor(
     onDelete: () -> Unit,
     draft: ShareDraftItem? = null,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var isIncome by remember { mutableStateOf(tx?.isIncome ?: (draft?.isIncome ?: false)) }
     var category by remember {
         mutableStateOf(
@@ -71,6 +72,9 @@ fun TxEditor(
                 ?: if (tx?.isIncome == true) "收入进账" else "餐饮美食"
         )
     }
+    // 分类列表动态：内置 + 自定义（v3.12.0），记账页内可直接新增
+    var categories by remember { mutableStateOf(com.yang.jizhang.util.CategoryStore.all(context)) }
+    var showAddCategory by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf(tx?.note ?: draft?.note ?: "") }
     var amountText by remember {
         mutableStateOf(
@@ -181,17 +185,27 @@ fun TxEditor(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(10.dp))
-                CategoryRules.ALL_CATEGORIES.chunked(4).forEach { rowCats ->
+                // 内置 + 自定义分类 + 末尾「添加」格（v3.12.0）
+                (categories + listOf("__add__")).chunked(4).forEach { rowCats ->
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 5.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         rowCats.forEach { cat ->
-                            CategoryPick(
-                                category = cat,
-                                selected = cat == category,
-                                modifier = Modifier.weight(1f),
-                            ) { category = cat }
+                            if (cat == "__add__") {
+                                CategoryPick(
+                                    category = "添加",
+                                    emoji = "➕",
+                                    selected = false,
+                                    modifier = Modifier.weight(1f),
+                                ) { showAddCategory = true }
+                            } else {
+                                CategoryPick(
+                                    category = cat,
+                                    selected = cat == category,
+                                    modifier = Modifier.weight(1f),
+                                ) { category = cat }
+                            }
                         }
                         // 补齐最后一行空位
                         repeat(4 - rowCats.size) { Spacer(Modifier.weight(1f)) }
@@ -281,6 +295,17 @@ fun TxEditor(
                 }
             }
         }
+
+        if (showAddCategory) {
+            AddCategoryDialog(
+                onDismiss = { showAddCategory = false },
+                onAdded = { name ->
+                    categories = com.yang.jizhang.util.CategoryStore.all(context)
+                    category = name
+                    showAddCategory = false
+                },
+            )
+        }
     }
 }
 
@@ -326,6 +351,7 @@ private fun CategoryPick(
     category: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    emoji: String? = null,
     onClick: () -> Unit,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -345,7 +371,7 @@ private fun CategoryPick(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(CategoryRules.icon(category), fontSize = 21.sp)
+            Text(emoji ?: CategoryRules.icon(category), fontSize = 21.sp)
         }
         Spacer(Modifier.height(5.dp))
         Text(
@@ -431,4 +457,59 @@ private fun parseCents(s: String): Long {
         else -> parts[1].take(2).toLongOrNull() ?: 0L
     }
     return yuan * 100 + fen
+}
+
+/** 新增自定义分类对话框（v3.12.0），成功后选中新分类 */
+@Composable
+private fun AddCategoryDialog(
+    onDismiss: () -> Unit,
+    onAdded: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("添加分类", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                Text(
+                    "如：养宠 / 汽车 / 母婴（1-6 个字，最多 20 个）",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = {
+                        if (it.length <= 6) text = it
+                        error = null
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    isError = error != null,
+                    supportingText = error?.let { { Text(it, fontSize = 12.sp) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = text.isNotBlank(),
+                onClick = {
+                    val err = com.yang.jizhang.util.CategoryStore.add(context, text)
+                    if (err == null) {
+                        onAdded(text.trim())
+                    } else {
+                        error = err
+                    }
+                },
+            ) { Text("添加", fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }

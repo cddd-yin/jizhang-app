@@ -302,7 +302,9 @@ private fun BudgetEditDialog(
                 Spacer(Modifier.height(12.dp))
                 Text("适用范围", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
-                (listOf("" to "总预算") + CategoryRules.ALL_CATEGORIES.map { it to it }).chunked(4).forEach { rowCats ->
+                (listOf("" to "总预算") + com.yang.jizhang.util.CategoryStore.all(
+                    androidx.compose.ui.platform.LocalContext.current
+                ).map { it to it }).chunked(4).forEach { rowCats ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         rowCats.forEach { (cat, label) ->
                             Text(

@@ -295,7 +295,9 @@ private fun RecurringEditDialog(
                 // 分类
                 Text("分类", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
-                CategoryRules.ALL_CATEGORIES.chunked(4).forEach { rowCats ->
+                com.yang.jizhang.util.CategoryStore.all(
+                    androidx.compose.ui.platform.LocalContext.current
+                ).chunked(4).forEach { rowCats ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         rowCats.forEach { cat ->
                             Text(
