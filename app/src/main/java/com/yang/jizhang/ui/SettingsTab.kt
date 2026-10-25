@@ -71,8 +71,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.yang.jizhang.data.Source
-import com.yang.jizhang.importer.CsvImporter
-import com.yang.jizhang.notify.keepalive.ListenerStatus
+import com.yang.jizhang.engine.BillImporter
+import com.yang.jizhang.engine.keepalive.ListenerHealth
 import kotlinx.coroutines.launch
 
 /**
@@ -81,7 +81,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsTab(
     contentPad: PaddingValues,
-    listenerState: ListenerStatus.DisplayState,
+    listenerState: ListenerHealth.DisplayState,
     onExport: () -> Unit,
     onOpenRecurring: () -> Unit,
     themePreset: JzPreset,
@@ -93,7 +93,7 @@ fun SettingsTab(
     val lifecycleOwner = LocalLifecycleOwner.current
     var showCategoryManage by remember { mutableStateOf(false) }
 
-    var listenerEnabled by remember { mutableStateOf(ListenerStatus.isEnabledInSettings(context)) }
+    var listenerEnabled by remember { mutableStateOf(ListenerHealth.isEnabledInSettings(context)) }
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
     var batteryIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
 
@@ -105,7 +105,7 @@ fun SettingsTab(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                listenerEnabled = ListenerStatus.isEnabledInSettings(context)
+                listenerEnabled = ListenerHealth.isEnabledInSettings(context)
                 postNotificationsGranted = isPostNotificationsGranted(context)
                 batteryIgnored = isBatteryOptimizationIgnored(context)
             }
@@ -116,7 +116,7 @@ fun SettingsTab(
 
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
-            val n = runCatching { CsvImporter.import(context, uri, Source.IMPORT) }.getOrDefault(0)
+            val n = runCatching { BillImporter.import(context, uri, Source.IMPORT) }.getOrDefault(0)
             android.widget.Toast.makeText(
                 context,
                 if (n > 0) "导入成功，新增 $n 条" else "导入失败：请选择支付宝/微信导出的账单 CSV",
@@ -180,18 +180,18 @@ fun SettingsTab(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val (dot, label) = when (listenerState) {
-                    ListenerStatus.DisplayState.CONNECTED -> incomeColor() to "自动记账运行中"
-                    ListenerStatus.DisplayState.RECOVERING -> warnColor() to "支付监听重连中"
-                    ListenerStatus.DisplayState.NEED_PERMISSION -> expenseColor() to "自动记账未开启"
+                    ListenerHealth.DisplayState.CONNECTED -> incomeColor() to "自动记账运行中"
+                    ListenerHealth.DisplayState.RECOVERING -> warnColor() to "支付监听重连中"
+                    ListenerHealth.DisplayState.NEED_PERMISSION -> expenseColor() to "自动记账未开启"
                 }
                 Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
                 Spacer(Modifier.width(10.dp))
                 Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
                     when (listenerState) {
-                        ListenerStatus.DisplayState.CONNECTED -> "支付后自动入账"
-                        ListenerStatus.DisplayState.RECOVERING -> "点权限项修复"
-                        ListenerStatus.DisplayState.NEED_PERMISSION -> "开启下方权限"
+                        ListenerHealth.DisplayState.CONNECTED -> "支付后自动入账"
+                        ListenerHealth.DisplayState.RECOVERING -> "点权限项修复"
+                        ListenerHealth.DisplayState.NEED_PERMISSION -> "开启下方权限"
                         else -> ""
                     },
                     fontSize = 12.sp,
@@ -293,7 +293,7 @@ fun SettingsTab(
                 scope.launch {
                     val uri = com.yang.jizhang.util.BackupHelper.exportFull(context)
                     if (uri != null) {
-                        com.yang.jizhang.util.CsvExporter.shareFile(context, uri, "application/json")
+                        com.yang.jizhang.engine.BillExporter.share(context, uri, "application/json")
                         android.widget.Toast.makeText(context, "完整备份已导出到 下载/Jizhang", android.widget.Toast.LENGTH_LONG).show()
                     } else {
                         android.widget.Toast.makeText(context, "没有可备份的数据", android.widget.Toast.LENGTH_SHORT).show()

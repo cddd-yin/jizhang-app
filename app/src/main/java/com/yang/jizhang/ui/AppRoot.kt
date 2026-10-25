@@ -62,10 +62,10 @@ import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
 import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
-import com.yang.jizhang.notify.PendingConfirmStore
-import com.yang.jizhang.notify.keepalive.KeepAliveService
-import com.yang.jizhang.notify.keepalive.ListenerStatus
-import com.yang.jizhang.util.CsvExporter
+import com.yang.jizhang.engine.UncertainBillQueue
+import com.yang.jizhang.engine.keepalive.GuardianService
+import com.yang.jizhang.engine.keepalive.ListenerHealth
+import com.yang.jizhang.engine.BillExporter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -190,22 +190,22 @@ fun AppRoot() {
     }
 
     // 监听状态轮询（STARTED 感知）
-    val listenerState = remember { mutableStateOf(ListenerStatus.displayState(context)) }
+    val listenerState = remember { mutableStateOf(ListenerHealth.displayState(context)) }
     LaunchedEffect(Unit) {
         lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
-                listenerState.value = ListenerStatus.displayState(context)
+                listenerState.value = ListenerHealth.displayState(context)
                 delay(3_000)
             }
         }
     }
 
     // 待确认账单轮询（STARTED 感知）
-    var pending by remember { mutableStateOf<List<PendingConfirmStore.Pending>>(PendingConfirmStore.all()) }
+    var pending by remember { mutableStateOf<List<UncertainBillQueue.Pending>>(UncertainBillQueue.all()) }
     LaunchedEffect(Unit) {
         lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
-                pending = PendingConfirmStore.all()
+                pending = UncertainBillQueue.all()
                 delay(1_000)
             }
         }
@@ -291,25 +291,13 @@ fun AppRoot() {
     pending.firstOrNull()?.let { p ->
         PendingConfirmDialog(
             pending = p,
-            onClose = { PendingConfirmStore.remove(p.id) },
+            onClose = { UncertainBillQueue.remove(p.id) },
             onConfirm = { amountCents, income ->
-                scope.launch {
-                    dao.insertIgnore(
-                        TxEntity(
-                            amountCents = amountCents,
-                            isIncome = income,
-                            category = CategoryRules.guess(p.merchant, p.source),
-                            note = p.merchant.ifBlank { p.source },
-                            source = p.source,
-                            time = p.transactionTime,
-                            dedupeKey = p.dedupeKey,
-                        )
-                    )
-                    com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
-                }
-                PendingConfirmStore.remove(p.id)
+                // v4.0.0：统一走引擎入库编排（分类学习 + 预算检查 + 小组件刷新）
+                com.yang.jizhang.engine.AutoBookEngine.confirm(context, p, amountCents, income)
+                UncertainBillQueue.remove(p.id)
             },
-            onIgnore = { PendingConfirmStore.remove(p.id) },
+            onIgnore = { UncertainBillQueue.remove(p.id) },
         )
     }
 
@@ -366,14 +354,14 @@ fun AppRoot() {
             onExportMonth = {
                 showExport = false
                 scope.launch {
-                    val uri = CsvExporter.export(context, range[0], range[1] - 1)
+                    val uri = BillExporter.export(context, range[0], range[1] - 1)
                     handleExportResult(context, uri)
                 }
             },
             onExportAll = {
                 showExport = false
                 scope.launch {
-                    val uri = CsvExporter.exportAll(context)
+                    val uri = BillExporter.exportAll(context)
                     handleExportResult(context, uri)
                 }
             },
@@ -400,7 +388,7 @@ fun AppRoot() {
 
 internal fun handleExportResult(context: Context, uri: Uri?) {
     if (uri != null) {
-        CsvExporter.shareFile(context, uri)
+        BillExporter.share(context, uri)
     } else {
         Toast.makeText(context, "没有可导出的账单记录", Toast.LENGTH_LONG).show()
     }
@@ -408,8 +396,8 @@ internal fun handleExportResult(context: Context, uri: Uri?) {
 
 /** 供重连横幅/设置页共用：强制重连监听 */
 internal fun forceReconnect(context: Context) {
-    ListenerStatus.requestRebind(context, force = true)
-    KeepAliveService.start(context)
+    ListenerHealth.requestRebind(context, force = true)
+    GuardianService.start(context)
 }
 
 /** 供状态横幅共用：跳系统通知使用权设置 */

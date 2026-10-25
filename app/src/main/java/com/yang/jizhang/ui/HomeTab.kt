@@ -47,7 +47,7 @@ import com.yang.jizhang.data.BudgetDao
 import com.yang.jizhang.data.BudgetEntity
 import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
-import com.yang.jizhang.notify.keepalive.ListenerStatus
+import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.util.Periods
 import java.util.Calendar
 
@@ -60,7 +60,7 @@ fun HomeTab(
     dao: TxDao,
     budgetDao: BudgetDao,
     contentPad: PaddingValues,
-    listenerState: ListenerStatus.DisplayState,
+    listenerState: ListenerHealth.DisplayState,
     onEdit: (TxEntity) -> Unit,
     onGoRecords: () -> Unit,
     onOpenBudgets: () -> Unit,
@@ -116,12 +116,12 @@ fun HomeTab(
             }
         }
 
-        if (listenerState != ListenerStatus.DisplayState.CONNECTED) {
+        if (listenerState != ListenerHealth.DisplayState.CONNECTED) {
             item(key = "banner") {
                 StatusBanner(
                     state = listenerState,
                     onClick = {
-                        if (listenerState == ListenerStatus.DisplayState.NEED_PERMISSION) {
+                        if (listenerState == ListenerHealth.DisplayState.NEED_PERMISSION) {
                             openListenerSettings(context)
                         } else {
                             forceReconnect(context)

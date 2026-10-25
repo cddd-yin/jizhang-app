@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.data.TxEntity
-import com.yang.jizhang.notify.keepalive.ListenerStatus
+import com.yang.jizhang.engine.keepalive.ListenerHealth
 import java.util.Calendar
 
 /**
@@ -142,11 +142,11 @@ private fun SwitchChevron(symbol: String, onClick: () -> Unit) {
 
 @Composable
 fun StatusBanner(
-    state: ListenerStatus.DisplayState,
+    state: ListenerHealth.DisplayState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val needPermission = state == ListenerStatus.DisplayState.NEED_PERMISSION
+    val needPermission = state == ListenerHealth.DisplayState.NEED_PERMISSION
     val tint = if (needPermission) expenseColor() else warnColor()
     Surface(
         color = tint.copy(alpha = 0.12f),

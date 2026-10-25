@@ -3,7 +3,7 @@ package com.yang.jizhang.util
 import android.content.Context
 import com.yang.jizhang.data.AppDatabase
 import com.yang.jizhang.data.Source
-import com.yang.jizhang.notify.keepalive.NotificationChannels
+import com.yang.jizhang.engine.keepalive.ChannelIds
 import kotlinx.coroutines.runBlocking
 import java.util.Calendar
 
@@ -55,7 +55,7 @@ object DailyDigest {
         val expense = auto.filter { !it.isIncome }.sumOf { it.amountCents }
         val income = auto.filter { it.isIncome }.sumOf { it.amountCents }
         try {
-            NotificationChannels.notifyDailyDigest(ctx, auto.size, expense, income)
+            ChannelIds.dailyDigest(ctx, auto.size, expense, income)
         } catch (_: Exception) {
             return
         }

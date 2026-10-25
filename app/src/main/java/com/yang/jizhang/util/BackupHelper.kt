@@ -84,7 +84,7 @@ object BackupHelper {
                 })
             }
             val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA).format(Date())
-            BackupStorage.writeText(context, "Jizhang_完整备份_$stamp.json", root.toString(), "application/json")
+            com.yang.jizhang.engine.BillExporter.writeText(context, "Jizhang_完整备份_$stamp.json", root.toString(), "application/json")
         } catch (e: Exception) {
             e.printStackTrace()
             null

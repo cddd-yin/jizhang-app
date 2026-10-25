@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yang.jizhang.notify.PendingConfirmStore
+import com.yang.jizhang.engine.UncertainBillQueue
 
 /**
  * v3.0.0 全局弹窗：待确认账单（自动记账识别不确定时）与 CSV 导出菜单。
@@ -38,7 +38,7 @@ import com.yang.jizhang.notify.PendingConfirmStore
 /** 待确认账单弹窗：可改金额/收支后入账 */
 @Composable
 fun PendingConfirmDialog(
-    pending: PendingConfirmStore.Pending,
+    pending: UncertainBillQueue.Pending,
     onClose: () -> Unit,
     onConfirm: (amountCents: Long, isIncome: Boolean) -> Unit,
     onIgnore: () -> Unit,

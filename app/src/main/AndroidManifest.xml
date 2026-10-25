@@ -36,13 +36,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 分享文本记账：任意 App 分享文本到本 App -->
+            <!-- 分享文本记账 -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
-            <!-- 划词记账：选中文本 → 在蓝鲸记账中记账 -->
+            <!-- 划词记账 -->
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -50,9 +50,9 @@
             </intent-filter>
         </activity>
 
-        <!-- 通知监听服务：系统跨 UID 绑定，exported 需为 true -->
+        <!-- 支付通知监听（系统跨 UID 绑定，exported 必须 true） -->
         <service
-            android:name=".notify.PaymentListener"
+            android:name=".engine.PaymentWatchService"
             android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
@@ -60,9 +60,9 @@
             </intent-filter>
         </service>
 
-        <!-- 保活前台服务 -->
+        <!-- 前台守卫（三态状态机保活） -->
         <service
-            android:name=".notify.keepalive.KeepAliveService"
+            android:name=".engine.keepalive.GuardianService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
@@ -70,9 +70,9 @@
                 android:value="Keep payment notification listener alive for auto bookkeeping" />
         </service>
 
-        <!-- 开机 / 解锁 / 定时狗：拉起保活并重绑监听（不依赖用户打开 App） -->
+        <!-- 开机 / 解锁 / 定时唤醒 -->
         <receiver
-            android:name=".notify.keepalive.ListenerWakeReceiver"
+            android:name=".engine.keepalive.BootRouser"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -82,21 +82,21 @@
             </intent-filter>
         </receiver>
 
-        <!-- 外部记账广播（v3.10.0）：Tasker / AutoAccounting 等自动化工具喂单入口 -->
+        <!-- 覆盖安装后标记需重新授权 -->
         <receiver
-            android:name=".notify.ExternalRecordReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.yang.jizhang.action.RECORD" />
-            </intent-filter>
-        </receiver>
-
-        <!-- 覆盖安装完成后标记需重新开启通知使用权 -->
-        <receiver
-            android:name=".notify.keepalive.PackageReplacedReceiver"
+            android:name=".engine.keepalive.UpgradeMarker"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 外部记账广播 -->
+        <receiver
+            android:name=".engine.ExternalRecordReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.yang.jizhang.action.RECORD" />
             </intent-filter>
         </receiver>
 
@@ -125,7 +125,7 @@
             </intent-filter>
         </service>
 
-        <!-- CSV 导出 / 备份 FileProvider -->
+        <!-- 分享 / 导出 FileProvider -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

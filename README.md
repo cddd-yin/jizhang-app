@@ -121,14 +121,11 @@ app/src/main/java/com/yang/jizhang/
 ├── JizhangApp.kt          # Application，数据库单例
 ├── CategoryRules.kt       # 分类关键词与图标规则
 ├── data/                  # Room 实体 / DAO / 数据库（v3.1 起含 budgets / recurrings）
-├── notify/                # 通知监听 + 金额解析 + 去重
-│   ├── PaymentListener.kt     # NotificationListenerService 核心
-│   ├── NotificationParser.kt  # 全渠道支付通知解析（金额/收支/商户/防营销）
-│   ├── DedupHelper.kt         # 智能去重
-│   ├── PendingConfirmStore.kt # 待确认账单暂存
-│   └── keepalive/             # 前台保活 / 状态 / 看门狗 / 通知样式
-├── importer/              # 支付宝/微信 CSV 导入
-├── util/                  # CSV 导出 / 周期工具 / 周期记账补账引擎（抄 SmartLedger）
+├── engine/               # v4.0.0 全新引擎：解析管线(BillParser)+指纹去重(DuplicateGuard)+
+│                         #   入库编排(AutoBookEngine)+监听(PaymentWatchService)+
+│                         #   CSV 导入导出(BillImporter/BillExporter)+广播入口+
+│                         #   keepalive/(三态状态机守卫+健康+看门狗)
+├── util/                  # 周期/预算/学习等工具（v3 系新增）
 ├── widget/                # 桌面小组件（Glance）/ 快捷磁贴
 └── ui/                    # Compose 界面（v3.0.0 全部重写：账本 / 明细 / 统计 / 设置 / 全屏记账 / 预算与周期管理 / 组件库 / 弹窗 / 主题）
 ```

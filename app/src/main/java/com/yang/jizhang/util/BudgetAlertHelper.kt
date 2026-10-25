@@ -3,7 +3,7 @@ package com.yang.jizhang.util
 import android.content.Context
 import com.yang.jizhang.data.AppDatabase
 import com.yang.jizhang.data.BudgetEntity
-import com.yang.jizhang.notify.keepalive.NotificationChannels
+import com.yang.jizhang.engine.keepalive.ChannelIds
 import com.yang.jizhang.ui.fmtCents
 import kotlinx.coroutines.runBlocking
 
@@ -78,7 +78,7 @@ object BudgetAlertHelper {
                     text = "$periodLabel$name 已用 ${fmtCents(spent)}，超出预算 ${fmtCents(spent - budget.amountCents)}"
                 }
             }
-            NotificationChannels.notifyBudgetAlert(context, title, text)
+            ChannelIds.budgetAlert(context, title, text)
             prefs.edit().putInt(key, level).apply()
         }
     }
