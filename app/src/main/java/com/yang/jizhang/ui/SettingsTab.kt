@@ -409,7 +409,7 @@ private fun ModeCell(
     }
 }
 
-/** 主题预设色卡：渐变圆点 + 名称，选中描边 */
+/** 主题预设色卡：渐变圆点 + 名称，选中描边；动态取色为四色环点（Material You） */
 @Composable
 private fun PresetCard(
     preset: JzPreset,
@@ -418,6 +418,7 @@ private fun PresetCard(
     onClick: () -> Unit,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(
         modifier
             .padding(horizontal = 3.dp)
@@ -434,6 +435,11 @@ private fun PresetCard(
             )
             .clickable {
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT < 31) {
+                    android.widget.Toast.makeText(
+                        context, "动态取色需要 Android 12+，将使用深海配色", android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
                 onClick()
             }
             .padding(vertical = 12.dp),
@@ -444,9 +450,19 @@ private fun PresetCard(
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(
-                    androidx.compose.ui.graphics.Brush.linearGradient(
-                        listOf(preset.accentLight, preset.accentDark)
-                    )
+                    if (preset == JzPreset.MATERIAL_YOU) {
+                        // Material You：四色环形示意「跟随系统壁纸」
+                        androidx.compose.ui.graphics.Brush.sweepGradient(
+                            listOf(
+                                Color(0xFF6750A4), Color(0xFF00897B),
+                                Color(0xFFEF6C00), Color(0xFFC2185B), Color(0xFF6750A4),
+                            )
+                        )
+                    } else {
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(preset.accentLight, preset.accentDark)
+                        )
+                    }
                 ),
             contentAlignment = Alignment.Center,
         ) {
@@ -466,6 +482,9 @@ private fun PresetCard(
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (preset == JzPreset.MATERIAL_YOU) {
+            Text("跟系统", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

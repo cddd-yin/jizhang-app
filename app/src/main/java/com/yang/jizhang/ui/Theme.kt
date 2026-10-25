@@ -27,11 +27,12 @@ import com.yang.jizhang.R
 
 enum class JzPreset(
     val label: String,
-    /** 深色模式主色 */
+    /** 深色模式主色（MATERIAL_YOU 为占位，实际取系统动态色） */
     val accentDark: Color,
     /** 浅色模式主色 */
     val accentLight: Color,
 ) {
+    MATERIAL_YOU("动态取色", Color(0xFF6750A4), Color(0xFF6750A4)), // Material You（Android 12+ 壁纸取色，官方设计语言）
     DEEP_SEA("深海", Color(0xFF8B8CF8), Color(0xFF5A5BD8)),   // 默认 · 藤紫
     SKY("晴空", Color(0xFF4CC2FF), Color(0xFF0084D1)),        // 天蓝（v2.x 记忆色）
     MINT("薄荷", Color(0xFF3DDCB4), Color(0xFF0FA968)),       // 薄荷绿
@@ -225,9 +226,21 @@ fun JizhangTheme(
     preset: JzPreset = JzPreset.DEEP_SEA,
     content: @Composable () -> Unit,
 ) {
+    // Material You（v4.1.0）：Android 12+ 整套配色直接取系统动态色（官方 API），
+    // 低版本选了动态取色则回退默认预设
+    val scheme = if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT >= 31) {
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        if (darkTheme) {
+            androidx.compose.material3.dynamicDarkColorScheme(ctx)
+        } else {
+            androidx.compose.material3.dynamicLightColorScheme(ctx)
+        }
+    } else {
+        colors(preset, darkTheme)
+    }
     androidx.compose.runtime.CompositionLocalProvider(LocalJzDark provides darkTheme) {
         MaterialTheme(
-            colorScheme = colors(preset, darkTheme),
+            colorScheme = scheme,
             typography = JzTypography,
             shapes = JzShapes,
             content = content,
