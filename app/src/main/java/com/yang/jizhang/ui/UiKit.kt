@@ -47,6 +47,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.DirectionsBus
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Label
+import androidx.compose.material.icons.outlined.MedicalServices
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Paid
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.SportsEsports
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.engine.keepalive.ListenerHealth
@@ -58,6 +71,24 @@ import java.util.Calendar
  */
 
 // ── 分类圆徽 ──
+
+/**
+ * 分类 → Material 线性图标（v4.4.0：极简线条替代 emoji，官方图标语义保识别）。
+ */
+fun categoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector = when (category) {
+    "餐饮美食" -> Icons.Outlined.Restaurant
+    "交通出行" -> Icons.Outlined.DirectionsBus
+    "购物消费" -> Icons.Outlined.ShoppingBag
+    "生活缴费" -> Icons.Outlined.Bolt
+    "居住住房" -> Icons.Outlined.Home
+    "娱乐休闲" -> Icons.Outlined.SportsEsports
+    "医疗健康" -> Icons.Outlined.MedicalServices
+    "学习教育" -> Icons.Outlined.MenuBook
+    "红包转账" -> Icons.Outlined.CardGiftcard
+    "收入进账" -> Icons.Outlined.Paid
+    "其他" -> Icons.Outlined.Category
+    else -> Icons.Outlined.Label
+}
 
 /** 每个分类的专属色相（彩底圆徽 / 统计条共用） */
 fun categoryHue(category: String): Color = when (category) {
@@ -86,9 +117,11 @@ fun CategoryCircle(category: String, size: Dp = 42.dp, modifier: Modifier = Modi
             .background(hue.copy(alpha = if (dark) 0.20f else 0.14f)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            CategoryRules.icon(category),
-            fontSize = (size.value * 0.46f).sp,
+        androidx.compose.material3.Icon(
+            categoryIcon(category),
+            contentDescription = category,
+            tint = hue,
+            modifier = Modifier.size(size * 0.46f),
         )
     }
 }

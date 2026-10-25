@@ -371,7 +371,16 @@ private fun CategoryPick(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(emoji ?: CategoryRules.icon(category), fontSize = 21.sp)
+            if (emoji != null) {
+                Text(emoji, fontSize = 21.sp)
+            } else {
+                androidx.compose.material3.Icon(
+                    categoryIcon(category),
+                    contentDescription = category,
+                    tint = if (selected) androidx.compose.ui.graphics.Color.White else categoryHue(category),
+                    modifier = Modifier.size(21.dp),
+                )
+            }
         }
         Spacer(Modifier.height(5.dp))
         Text(

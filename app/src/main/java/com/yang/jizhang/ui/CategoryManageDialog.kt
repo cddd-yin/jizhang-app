@@ -75,7 +75,7 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(CategoryRules.icon(cat), fontSize = 13.sp)
+                                androidx.compose.material3.Icon(categoryIcon(cat), contentDescription = cat, tint = categoryHue(cat), modifier = Modifier.size(13.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(cat, fontSize = 12.sp, maxLines = 1)
                             }
@@ -106,7 +106,7 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(CategoryRules.icon(cat), fontSize = 16.sp)
+                        androidx.compose.material3.Icon(categoryIcon(cat), contentDescription = cat, tint = categoryHue(cat), modifier = Modifier.size(17.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(cat, fontSize = 15.sp, modifier = Modifier.weight(1f))
                         Text(
