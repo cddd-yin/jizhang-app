@@ -49,6 +49,7 @@ import com.yang.jizhang.data.TxEntity
 /**
  * 记一笔 / 编辑账单（全屏，Expenso 计算器键盘同款交互）：
  * 支出/收入分段 → 选分类 → 填备注 → 键盘敲金额 → 右上角 ✓ 保存。
+ * draft：分享/划词入口预填草稿（仅添加模式生效）。
  */
 @Composable
 fun TxEditor(
@@ -56,15 +57,25 @@ fun TxEditor(
     onClose: () -> Unit,
     onSave: (amountCents: Long, isIncome: Boolean, category: String, note: String) -> Unit,
     onDelete: () -> Unit,
+    draft: ShareDraftItem? = null,
 ) {
-    var isIncome by remember { mutableStateOf(tx?.isIncome ?: false) }
-    var category by remember { mutableStateOf(tx?.category ?: if (tx?.isIncome == true) "收入进账" else "餐饮美食") }
-    var note by remember { mutableStateOf(tx?.note ?: "") }
+    var isIncome by remember { mutableStateOf(tx?.isIncome ?: (draft?.isIncome ?: false)) }
+    var category by remember {
+        mutableStateOf(
+            tx?.category
+                ?: draft?.category
+                ?: if (tx?.isIncome == true) "收入进账" else "餐饮美食"
+        )
+    }
+    var note by remember { mutableStateOf(tx?.note ?: draft?.note ?: "") }
     var amountText by remember {
         mutableStateOf(
             tx?.let { t ->
                 (t.amountCents / 100).toString() + "." + (t.amountCents % 100).toString().padStart(2, '0')
-            } ?: ""
+            } ?: draft?.let { d ->
+                (d.amountCents / 100).toString() + "." + (d.amountCents % 100).toString().padStart(2, '0')
+            }
+            ?: ""
         )
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Download
@@ -74,6 +75,7 @@ fun SettingsTab(
     contentPad: PaddingValues,
     listenerState: ListenerStatus.DisplayState,
     onExport: () -> Unit,
+    onOpenRecurring: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -190,6 +192,14 @@ fun SettingsTab(
                 description = "关闭电池优化，防止监听服务在后台被系统回收",
                 granted = batteryIgnored,
             ) { openBatteryOptimization(context) }
+        }
+
+        // ── 周期记账 ──
+        SettingsHeader("周期记账")
+        SettingsCard {
+            ActionItem(Icons.Outlined.Autorenew, "周期规则", "房租、工资、订阅等固定收支按周/月自动入账") {
+                onOpenRecurring()
+            }
         }
 
         // ── 数据管理 ──

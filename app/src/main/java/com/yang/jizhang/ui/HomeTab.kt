@@ -1,6 +1,5 @@
 package com.yang.jizhang.ui
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,67 +21,63 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yang.jizhang.data.BudgetDao
+import com.yang.jizhang.data.BudgetEntity
 import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.notify.keepalive.ListenerStatus
+import com.yang.jizhang.util.Periods
 import java.util.Calendar
 
 /**
- * 账本首页：结余大卡 + 月度预算仪表 + 最近交易。
+ * 账本首页：结余大卡 + 预算区（总预算仪表 + 分类/周期预算条）+ 最近交易。
  * 恒显当前自然月；跨月浏览在「明细 / 统计」进行。
  */
 @Composable
 fun HomeTab(
     dao: TxDao,
+    budgetDao: BudgetDao,
     contentPad: PaddingValues,
     listenerState: ListenerStatus.DisplayState,
     onEdit: (TxEntity) -> Unit,
     onGoRecords: () -> Unit,
+    onOpenBudgets: () -> Unit,
 ) {
     val context = LocalContext.current
     val now = remember { Calendar.getInstance() }
     val monthLabel = "${now.get(Calendar.YEAR)} 年 ${now.get(Calendar.MONTH) + 1} 月"
 
-    // 当前自然月全量流水（结余/预算口径）与最近交易（列表口径）分开取
+    // 当前自然月全量流水（结余口径）与最近交易（列表口径）分开取
     val monthRange = remember { com.yang.jizhang.CategoryRules.monthRange(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1) }
     val monthTxs by dao.watchRange(monthRange[0], monthRange[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val recent by dao.watchRecent(8).collectAsStateWithLifecycle(initialValue = emptyList())
 
-    var budgetCents by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
-        while (true) {
-            budgetCents = prefs.getLong("monthly_budget_cents", 0L)
-            kotlinx.coroutines.delay(2_000)
-        }
+    // 预算（v3.1）：启用中的预算列表 + 最早窗口起的流水（各预算按自己的当前窗口求已用）
+    val budgets by budgetDao.watchEnabled().collectAsStateWithLifecycle(initialValue = emptyList())
+    val earliestWinStart = remember(budgets) {
+        budgets.minOfOrNull { Periods.currentWindow(it.period)[0] } ?: monthRange[0]
     }
-    var showBudgetDialog by remember { mutableStateOf(false) }
+    val budgetTxs by dao.watchSince(earliestWinStart).collectAsStateWithLifecycle(initialValue = emptyList())
 
     val expenseTotal = monthTxs.sumOf { if (it.isIncome) 0L else it.amountCents }
     val incomeTotal = monthTxs.sumOf { if (it.isIncome) it.amountCents else 0L }
@@ -175,13 +170,13 @@ fun HomeTab(
             }
         }
 
-        // ── 月度预算仪表 ──
+        // ── 预算区（总预算仪表 + 分类/周期预算条） ──
         item(key = "budget") {
             BudgetCard(
-                budgetCents = budgetCents,
-                expenseTotal = expenseTotal,
+                budgets = budgets,
+                budgetTxs = budgetTxs,
                 monthLabel = monthLabel,
-                onClick = { showBudgetDialog = true },
+                onClick = onOpenBudgets,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
@@ -238,19 +233,6 @@ fun HomeTab(
             }
         }
     }
-
-    if (showBudgetDialog) {
-        BudgetDialog(
-            current = budgetCents,
-            onSave = { cents ->
-                budgetCents = cents
-                context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
-                    .edit().putLong("monthly_budget_cents", cents).apply()
-                showBudgetDialog = false
-            },
-            onClose = { showBudgetDialog = false },
-        )
-    }
 }
 
 private fun formatDay(millis: Long): String {
@@ -287,11 +269,11 @@ private fun FlowStat(
     }
 }
 
-/** 月度预算卡：无预算 → 引导设置；有预算 → 半圆仪表（剩余/超支）+ 已支/预算 */
+/** 预算卡（v3.1）：总预算半圆仪表 + 分类/周期预算进度条，无预算引导设置 */
 @Composable
 private fun BudgetCard(
-    budgetCents: Long,
-    expenseTotal: Long,
+    budgets: List<BudgetEntity>,
+    budgetTxs: List<TxEntity>,
     monthLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -310,117 +292,137 @@ private fun BudgetCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "月度预算",
+                    "预算",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
                 Text(monthLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (budgetCents <= 0) {
+
+            class Progress(val budget: BudgetEntity, val spent: Long)
+            val progresses = remember(budgets, budgetTxs) {
+                budgets.map { b ->
+                    val win = Periods.currentWindow(b.period)
+                    val spent = budgetTxs
+                        .filter { !it.isIncome && it.time in win[0] until win[1] }
+                        .filter { b.category.isEmpty() || it.category == b.category }
+                        .sumOf { it.amountCents }
+                    Progress(b, spent)
+                }
+            }
+            val total = progresses.firstOrNull { it.budget.category.isEmpty() }
+            val cats = progresses.filter { it.budget.category.isNotEmpty() }
+
+            if (progresses.isEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text("🧭", fontSize = 34.sp)
                 Spacer(Modifier.height(8.dp))
-                Text("设置月度预算", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("设置预算", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "点此设定，超支自动提醒",
+                    "总预算或分类预算，每月 / 每周自动重置",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(6.dp))
             } else {
-                val over = expenseTotal > budgetCents
-                val remaining = budgetCents - expenseTotal
-                Box(
-                    Modifier.fillMaxWidth().padding(horizontal = 34.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    BudgetGauge(
-                        usedFraction = if (budgetCents > 0) expenseTotal.toFloat() / budgetCents else 0f,
-                        progressColor = if (over) expenseColor() else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth().height(96.dp),
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // 总预算仪表（任意周期）
+                if (total != null) {
+                    val over = total.spent > total.budget.amountCents
+                    val remaining = total.budget.amountCents - total.spent
+                    Box(
+                        Modifier.fillMaxWidth().padding(horizontal = 34.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        BudgetGauge(
+                            usedFraction = total.spent.toFloat() / total.budget.amountCents,
+                            progressColor = if (over) expenseColor() else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth().height(96.dp),
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "总预算 · " + Periods.label(total.budget.period) + (if (over) " · 已超支" else ""),
+                                fontSize = 12.sp,
+                                color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                fmtCents(if (over) -remaining else remaining),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
                         Text(
-                            if (over) "已超支" else "剩余",
-                            fontSize = 12.sp,
+                            "已支 ${fmtCents(total.spent)}",
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            fmtCents(if (over) -remaining else remaining),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurface,
+                            "预算 ${fmtCents(total.budget.amountCents)}",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        "已支 ${fmtCents(expenseTotal)}",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        "预算 ${fmtCents(budgetCents)}",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // 分类/周期预算条
+                if (cats.isNotEmpty()) {
+                    Spacer(Modifier.height(if (total != null) 10.dp else 4.dp))
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
+                        cats.forEach { p ->
+                            val over = p.spent > p.budget.amountCents
+                            val frac = if (p.budget.amountCents > 0) {
+                                (p.spent.toFloat() / p.budget.amountCents).coerceIn(0f, 1f)
+                            } else 0f
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CategoryCircle(p.budget.category, size = 26.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            p.budget.category,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Text(
+                                            "${Periods.label(p.budget.period)} · 已用 ${fmtCents(p.spent)} / ${fmtCents(p.budget.amountCents)}",
+                                            fontSize = 11.sp,
+                                            color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Box(
+                                        Modifier.fillMaxWidth().height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    ) {
+                                        Box(
+                                            Modifier.fillMaxWidth(frac).height(4.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(if (over) expenseColor() else MaterialTheme.colorScheme.primary),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Text(
+                            "管理预算 ›",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun BudgetDialog(
-    current: Long,
-    onSave: (Long) -> Unit,
-    onClose: () -> Unit,
-) {
-    var text by remember {
-        mutableStateOf(
-            if (current <= 0) "" else (current / 100.0).let { if (it == Math.floor(it)) it.toLong().toString() else "%.2f".format(it) }
-        )
-    }
-    val cents = text.toDoubleOrNull()?.let { Math.round(it * 100) } ?: 0L
-    AlertDialog(
-        onDismissRequest = onClose,
-        shape = MaterialTheme.shapes.large,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("月度预算", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column {
-                Text(
-                    "设为本月支出上限，留空或 0 表示不设预算。",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { s ->
-                        if (s.length <= 10 && (s.isEmpty() || Regex("""^\d*(\.\d{0,2})?$""").matches(s))) text = s
-                    },
-                    label = { Text("预算金额（元）") },
-                    prefix = { Text("¥") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = true, onClick = { onSave(cents) }) {
-                Text("保存", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onClose) { Text("取消") }
-        },
-    )
 }

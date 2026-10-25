@@ -84,10 +84,45 @@ fun AppRoot() {
     var editing by remember { mutableStateOf<TxEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
+    var showBudgets by remember { mutableStateOf(false) }
+    var showRecurring by remember { mutableStateOf(false) }
+    var shareDraft by remember { mutableStateOf<ShareDraftItem?>(null) }
 
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+
+    // 周期记账补账：打开 App 即补（含错过的期次），之后每 6 小时复查
+    LaunchedEffect(Unit) {
+        while (true) {
+            runCatching { com.yang.jizhang.util.RecurringHelper.processDue(context) }
+            delay(6 * 3600_000L)
+        }
+    }
+
+    // 分享/划词草稿 与 快捷磁贴「记一笔」请求
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (UiBus.openEditorRequest) {
+                UiBus.openEditorRequest = false
+                editing = null
+                shareDraft = null
+                adding = true
+            }
+            UiBus.sharePending?.let { draft ->
+                UiBus.sharePending = null
+                editing = null
+                shareDraft = draft
+                adding = true
+            }
+            delay(300)
+        }
+    }
+
+    // 桌面小组件：打开 App 时刷新一次
+    LaunchedEffect(Unit) {
+        runCatching { com.yang.jizhang.widget.WidgetSync.refresh(context) }
+    }
 
     // Android 13+ 首次进入运行时申请通知权限（否则「已记一笔」等通知不可见）
     val notifPermLauncher = rememberLauncherForActivityResult(
@@ -137,10 +172,12 @@ fun AppRoot() {
         when (tab) {
             0 -> HomeTab(
                 dao = dao,
+                budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
                 contentPad = pad,
                 listenerState = listenerState.value,
                 onEdit = { editing = it },
                 onGoRecords = { tab = 1 },
+                onOpenBudgets = { showBudgets = true },
             )
             1 -> RecordsTab(
                 txs = txs,
@@ -162,6 +199,7 @@ fun AppRoot() {
                 contentPad = pad,
                 listenerState = listenerState.value,
                 onExport = { showExport = true },
+                onOpenRecurring = { showRecurring = true },
             )
         }
     }
@@ -191,11 +229,12 @@ fun AppRoot() {
         )
     }
 
-    // 记一笔 / 编辑（全屏计算器，一个入口两用）
+    // 记一笔 / 编辑（全屏计算器，一个入口两用；分享草稿仅添加模式生效）
     if (adding || editing != null) {
         TxEditor(
             tx = editing,
-            onClose = { adding = false; editing = null },
+            draft = shareDraft,
+            onClose = { adding = false; editing = null; shareDraft = null },
             onSave = { amount, income, category, note ->
                 val tx = editing
                 scope.launch {
@@ -216,9 +255,11 @@ fun AppRoot() {
                             tx.copy(amountCents = amount, isIncome = income, category = category, note = note)
                         )
                     }
+                    runCatching { com.yang.jizhang.widget.WidgetSync.refresh(context) }
                 }
                 adding = false
                 editing = null
+                shareDraft = null
             },
             onDelete = {
                 val tx = editing
@@ -247,6 +288,21 @@ fun AppRoot() {
                     handleExportResult(context, uri)
                 }
             },
+        )
+    }
+
+    // 预算管理 / 周期记账（全屏管理页，覆盖主界面）
+    if (showBudgets) {
+        BudgetManageScreen(
+            budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
+            txDao = dao,
+            onClose = { showBudgets = false },
+        )
+    }
+    if (showRecurring) {
+        RecurringManageScreen(
+            recurringDao = (context.applicationContext as JizhangApp).db.recurringDao(),
+            onClose = { showRecurring = false },
         )
     }
 }

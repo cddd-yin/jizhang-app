@@ -32,6 +32,13 @@
   保留 Lato 数字 + Sans 正文字体（OFL）。
 - **月度统计**：按月切换，支出/收入/结余总览（结余按收支着色）+ 近 6 个月支出柱状图 +
   收入分类占比饼图 + 本月支出分类条形图。
+- **分类预算与预算周期（v3.1.0）**：除月度总预算外，可为单个分类设预算，
+  周期支持每月 / 每周自动重置；账本首页仪表盘 + 分类进度条一目了然，超支变红。
+- **周期记账（v3.1.0）**：房租、工资、订阅这类固定收支设一次规则，按周 / 月到点自动入账
+  （App 打开或后台心跳时执行补账，错过的期次自动补上，按期去重绝不重记）。
+- **桌面小组件 / 快捷磁贴 / 分享记账（v3.1.0）**：桌面卡片看本月支出/收入/结余、
+  一键记一笔；下拉快捷磁贴直达记账页；任意 App 选中文本「在蓝鲸记账中记账」
+  或分享账单文本，自动解析金额预填草稿。
 - **数据本地化**：Room 数据库存于手机本地，无任何网络权限。
 
 ## 使用步骤（首次安装后）
@@ -71,7 +78,7 @@
 app/src/main/java/com/yang/jizhang/
 ├── JizhangApp.kt          # Application，数据库单例
 ├── CategoryRules.kt       # 分类关键词与图标规则
-├── data/                  # Room 实体 / DAO / 数据库
+├── data/                  # Room 实体 / DAO / 数据库（v3.1 起含 budgets / recurrings）
 ├── notify/                # 通知监听 + 金额解析 + 去重
 │   ├── PaymentListener.kt     # NotificationListenerService 核心
 │   ├── NotificationParser.kt  # 全渠道支付通知解析（金额/收支/商户/防营销）
@@ -79,8 +86,9 @@ app/src/main/java/com/yang/jizhang/
 │   ├── PendingConfirmStore.kt # 待确认账单暂存
 │   └── keepalive/             # 前台保活 / 状态 / 看门狗 / 通知样式
 ├── importer/              # 支付宝/微信 CSV 导入
-├── util/                  # CSV 导出 / MediaStore 备份（抄 SmartLedger）
-└── ui/                    # Compose 界面（v3.0.0 全部重写：账本 / 明细 / 统计 / 设置 / 全屏记账 / 组件库 / 弹窗 / 主题）
+├── util/                  # CSV 导出 / 周期工具 / 周期记账补账引擎（抄 SmartLedger）
+├── widget/                # 桌面小组件（Glance）/ 快捷磁贴
+└── ui/                    # Compose 界面（v3.0.0 全部重写：账本 / 明细 / 统计 / 设置 / 全屏记账 / 预算与周期管理 / 组件库 / 弹窗 / 主题）
 ```
 
 解析方案借鉴开源项目 [SmartLedger](https://github.com/huanghhcri/SmartLedger)

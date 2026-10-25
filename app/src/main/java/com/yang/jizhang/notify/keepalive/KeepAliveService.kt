@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import com.yang.jizhang.notify.PaymentListener
+import com.yang.jizhang.util.RecurringHelper
 
 /**
  * 前台保活 + 监听重连巡检。
@@ -136,6 +137,8 @@ class KeepAliveService : Service() {
     /** @return 下次巡检间隔 */
     private fun tickRecover(): Long {
         refreshNotification(this)
+        // 周期记账补账兜底（App 未打开时也能按期入账；内部有幂等去重）
+        RecurringHelper.processDueAsync(this)
 
         if (!ListenerStatus.isEnabledInSettings(this)) {
             failStreak = 0

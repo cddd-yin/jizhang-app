@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">蓝鲸记账</string>
     <string name="listener_label">蓝鲸记账 · 支付通知监听</string>
+    <string name="widget_desc">本月支出 / 收入 / 结余一览，一键记账</string>
+    <string name="tile_record">记一笔</string>
 </resources>
