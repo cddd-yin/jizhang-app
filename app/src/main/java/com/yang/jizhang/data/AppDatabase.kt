@@ -140,6 +140,9 @@ interface RecurringDao {
 
     @Query("SELECT * FROM recurrings WHERE enabled = 1")
     suspend fun getEnabledOnce(): List<RecurringEntity>
+
+    @Query("SELECT * FROM recurrings ORDER BY id")
+    suspend fun getAllOnce(): List<RecurringEntity>
 }
 
 @Database(

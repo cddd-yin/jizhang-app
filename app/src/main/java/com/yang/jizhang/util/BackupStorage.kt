@@ -50,9 +50,13 @@ object BackupStorage {
     )
 
     /**
-     * 写入 CSV 文本，返回可分享 Uri（优先 MediaStore Downloads）。
+     * 写入文本文件，返回可分享 Uri（优先 MediaStore Downloads）。
      */
-    fun writeCsv(context: Context, fileName: String, csvContent: String): Uri? {
+    fun writeCsv(context: Context, fileName: String, csvContent: String): Uri? =
+        writeText(context, fileName, csvContent, "text/csv")
+
+    /** v3.8.0：完整备份 JSON 等其他文本类型 */
+    fun writeText(context: Context, fileName: String, content: String, mimeType: String): Uri? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val resolver = context.contentResolver
@@ -60,14 +64,14 @@ object BackupStorage {
                 deleteMediaByName(context, fileName)
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                     put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOADS_REL)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
                 val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 if (uri != null) {
                     resolver.openOutputStream(uri)?.use { out ->
-                        out.write(csvContent.toByteArray(Charsets.UTF_8))
+                        out.write(content.toByteArray(Charsets.UTF_8))
                         out.flush()
                     }
                     values.clear()
@@ -82,7 +86,7 @@ object BackupStorage {
         }
 
         val file = resolveWritableFile(context, fileName) ?: return null
-        FileWriter(file).use { it.write(csvContent) }
+        FileWriter(file).use { it.write(content) }
         return androidx.core.content.FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",

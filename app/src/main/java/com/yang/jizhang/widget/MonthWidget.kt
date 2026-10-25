@@ -45,16 +45,24 @@ class MonthWidget : GlanceAppWidget() {
         val income = txs.filter { it.isIncome }.sumOf { it.amountCents }
         val balance = income - expense
         val mainActivity = ComponentName(context, "com.yang.jizhang.ui.MainActivity")
+        // 主题联动（v3.8.0）：小组件标题用当前预设主色
+        val accent = com.yang.jizhang.ui.ThemePrefs.preset(context).accentDark
 
         provideContent {
             GlanceTheme {
-                Content(expense, income, balance, mainActivity)
+                Content(expense, income, balance, mainActivity, accent)
             }
         }
     }
 
     @Composable
-    private fun Content(expense: Long, income: Long, balance: Long, mainActivity: ComponentName) {
+    private fun Content(
+        expense: Long,
+        income: Long,
+        balance: Long,
+        mainActivity: ComponentName,
+        accent: Color,
+    ) {
         Column(
             modifier = GlanceModifier.fillMaxSize().padding(12.dp).cornerRadius(16.dp),
             verticalAlignment = Alignment.Vertical.CenterVertically,
@@ -63,7 +71,7 @@ class MonthWidget : GlanceAppWidget() {
                 Text(
                     "蓝鲸记账 · 本月",
                     style = TextStyle(
-                        color = GlanceTheme.colors.onSurface,
+                        color = ColorProvider(accent),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                     ),

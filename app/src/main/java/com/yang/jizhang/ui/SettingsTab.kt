@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -119,6 +121,30 @@ fun SettingsTab(
             if (n > 0) {
                 com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
                 com.yang.jizhang.widget.WidgetSync.refreshAsync(context)
+            }
+        }
+    }
+
+    // 完整备份恢复（v3.8.0）
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val result = runCatching { com.yang.jizhang.util.BackupHelper.restoreFull(context, uri) }.getOrNull()
+            when {
+                result == null -> android.widget.Toast.makeText(
+                    context, "恢复失败：请选择本 App 导出的完整备份 JSON", android.widget.Toast.LENGTH_LONG
+                ).show()
+                result.first + result.second + result.third == 0 -> android.widget.Toast.makeText(
+                    context, "恢复完成：数据均已存在，无新增", android.widget.Toast.LENGTH_LONG
+                ).show()
+                else -> {
+                    android.widget.Toast.makeText(
+                        context,
+                        "恢复完成：账单 ${result.first} 条 · 预算 ${result.second} 个 · 周期规则 ${result.third} 条",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                    com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
+                    com.yang.jizhang.widget.WidgetSync.refreshAsync(context)
+                }
             }
         }
     }
@@ -255,8 +281,24 @@ fun SettingsTab(
                 importPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
             }
             CardDivider()
-            ActionItem(Icons.Outlined.Download, "导出 / 备份账单", "导出本月或全部账单，可分享、可再导入") {
+            ActionItem(Icons.Outlined.Download, "导出账单 CSV", "导出本月或全部账单，可分享、可再导入") {
                 onExport()
+            }
+            CardDivider()
+            ActionItem(Icons.Outlined.SaveAlt, "完整备份（换机必用）", "账单 + 预算 + 周期规则 一个 JSON 全打包") {
+                scope.launch {
+                    val uri = com.yang.jizhang.util.BackupHelper.exportFull(context)
+                    if (uri != null) {
+                        com.yang.jizhang.util.CsvExporter.shareFile(context, uri, "application/json")
+                        android.widget.Toast.makeText(context, "完整备份已导出到 下载/Jizhang", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "没有可备份的数据", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            CardDivider()
+            ActionItem(Icons.Outlined.Restore, "恢复备份", "选择完整备份 JSON，幂等合并不产生重复") {
+                restorePicker.launch(arrayOf("application/json", "text/json", "text/plain", "*/*"))
             }
         }
 
@@ -274,7 +316,12 @@ fun SettingsTab(
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(12.dp))
-                Text("蓝鲸记账 v3.0.0", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                // 版本号动态取自 PackageManager（v3.8.0 修复：此前硬编码 v3.0.0 一直显示过时）
+                val versionName = remember {
+                    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+                        .getOrDefault("")
+                }
+                Text("蓝鲸记账 v$versionName", fontSize = 15.sp, modifier = Modifier.weight(1f))
             }
             CardDivider()
             Row(

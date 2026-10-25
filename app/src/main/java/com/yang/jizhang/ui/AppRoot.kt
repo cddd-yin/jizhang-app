@@ -279,6 +279,7 @@ fun AppRoot() {
                         themePreset = p
                         themeMode = m
                         ThemePrefs.save(context, p, m)
+                        runCatching { com.yang.jizhang.widget.WidgetSync.refreshAsync(context) }
                     },
                 )
             }

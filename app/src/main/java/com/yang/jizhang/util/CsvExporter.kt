@@ -70,9 +70,9 @@ object CsvExporter {
             "\"${value.replace("\"", "\"\"")}\""
         } else value
 
-    fun shareFile(context: Context, uri: Uri) {
+    fun shareFile(context: Context, uri: Uri, mimeType: String = "text/csv") {
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
+            type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
