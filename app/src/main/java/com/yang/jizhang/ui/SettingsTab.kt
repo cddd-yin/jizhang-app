@@ -361,33 +361,40 @@ private fun isBatteryOptimizationIgnored(context: Context): Boolean {
 }
 
 private fun openAutoStartSettings(context: Context) {
-    // vivo / iQOO
-    try {
-        context.startActivity(
-            Intent().apply {
-                component = ComponentName(
-                    "com.vivo.permissionmanager",
-                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
-                )
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
-        return
-    } catch (_: Exception) {
-    }
-    // 小米 / 红米
-    try {
-        context.startActivity(
-            Intent().apply {
-                component = ComponentName(
-                    "com.miui.securitycenter",
-                    "com.miui.permcenter.autostart.AutoStartManagementActivity",
-                )
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
-        return
-    } catch (_: Exception) {
+    // 各厂商自启动管理页候选（v3.4.0 扩展覆盖：vivo/华为/荣耀/OPPO/一加/魅族/三星/小米）
+    // 依次尝试，任一命中即打开；全不命中退回应用详情页
+    val candidates = listOf(
+        // vivo / iQOO
+        ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"),
+        // 华为 / EMUI
+        ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+        ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity"),
+        // 荣耀 / MagicOS
+        ComponentName("com.hihonor.systemmanager", "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+        // OPPO / ColorOS
+        ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
+        ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"),
+        // 一加 / OxygenOS
+        ComponentName("com.oneplus.security", "com.oneplus.security.chainstart.ChainStartListActivity"),
+        // 魅族 / Flyme
+        ComponentName("com.meizu.safe", "com.meizu.safe.permission.SmartBGActivity"),
+        // 三星 / One UI
+        ComponentName("com.samsung.android.sm", "com.samsung.android.sm.ui.battery.BatteryActivity"),
+        // 小米 / 红米 / MIUI
+        ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
+    )
+    for (cn in candidates) {
+        try {
+            context.startActivity(
+                Intent().apply {
+                    component = cn
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            return
+        } catch (_: Exception) {
+            // 该机型无此组件，尝试下一家
+        }
     }
     openAppDetails(context)
 }
