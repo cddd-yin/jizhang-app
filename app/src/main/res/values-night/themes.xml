@@ -1,0 +1,4 @@
+<resources>
+    <!-- 深色模式：启动窗口/窗口底色跟随深色，避免冷启动白闪（v3.12.1） -->
+    <style name="Theme.Jizhang" parent="android:Theme.Material.NoActionBar" />
+</resources>

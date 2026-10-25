@@ -79,7 +79,12 @@ class MonthWidget : GlanceAppWidget() {
                 )
                 FilledButton(
                     "记一笔",
-                    actionStartActivity(mainActivity),
+                    actionStartActivity(
+                        mainActivity,
+                        androidx.glance.action.actionParametersOf(
+                            androidx.glance.action.ActionParameters.Key<String>("open_editor") to "true",
+                        ),
+                    ),
                 )
             }
             Spacer(GlanceModifier.height(6.dp))

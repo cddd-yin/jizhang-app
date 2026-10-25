@@ -31,8 +31,10 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         intent ?: return
         runCatching {
-            // 快捷磁贴：直接打开记一笔
-            if (intent.getBooleanExtra("open_editor", false)) {
+            // 快捷磁贴 / 桌面小组件按钮：直接打开记一笔（组件经 Glance parameters 传字符串值）
+            if (intent.getBooleanExtra("open_editor", false) ||
+                intent.getStringExtra("open_editor") == "true"
+            ) {
                 UiBus.openEditorRequest = true
             }
             // 分享文本 / 划词记账
