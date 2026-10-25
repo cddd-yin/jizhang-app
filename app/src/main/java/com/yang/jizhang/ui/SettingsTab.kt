@@ -121,7 +121,9 @@ fun SettingsTab(
         Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            // 底栏 + FAB 避让（v3.5.0 修复：此前末尾条目被底部导航遮挡）
+            .padding(bottom = contentPad.calculateBottomPadding() + 96.dp),
     ) {
         Text(
             "设置",

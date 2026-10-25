@@ -54,6 +54,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
@@ -88,6 +90,7 @@ fun AppRoot() {
     var showBudgets by remember { mutableStateOf(false) }
     var showRecurring by remember { mutableStateOf(false) }
     var shareDraft by remember { mutableStateOf<ShareDraftItem?>(null) }
+    var editorKey by remember { mutableIntStateOf(0) }
 
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
@@ -120,30 +123,39 @@ fun AppRoot() {
         }
     }
 
-    // 周期记账补账：打开 App 即补（含错过的期次），之后每 6 小时复查
+    // ── 轮询全部改为 STARTED 感知：退到后台/锁屏时暂停，省电且不空转（v3.5.0）──
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    // 周期记账补账：回到前台即补（含错过的期次），期间每 6 小时复查
     LaunchedEffect(Unit) {
-        while (true) {
-            runCatching { com.yang.jizhang.util.RecurringHelper.processDue(context) }
-            delay(6 * 3600_000L)
+        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                runCatching { com.yang.jizhang.util.RecurringHelper.processDue(context) }
+                delay(6 * 3600_000L)
+            }
         }
     }
 
     // 分享/划词草稿 与 快捷磁贴「记一笔」请求
     LaunchedEffect(Unit) {
-        while (true) {
-            if (UiBus.openEditorRequest) {
-                UiBus.openEditorRequest = false
-                editing = null
-                shareDraft = null
-                adding = true
+        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                if (UiBus.openEditorRequest) {
+                    UiBus.openEditorRequest = false
+                    editing = null
+                    shareDraft = null
+                    adding = true
+                    editorKey++ // 已打开的记账页强制重建，磁贴重复触发也生效
+                }
+                UiBus.sharePending?.let { draft ->
+                    UiBus.sharePending = null
+                    editing = null
+                    shareDraft = draft
+                    adding = true
+                    editorKey++ // 记账页已开时又收到分享 → 丢弃旧输入，换上新草稿
+                }
+                delay(300)
             }
-            UiBus.sharePending?.let { draft ->
-                UiBus.sharePending = null
-                editing = null
-                shareDraft = draft
-                adding = true
-            }
-            delay(300)
         }
     }
 
@@ -164,21 +176,25 @@ fun AppRoot() {
         }
     }
 
-    // 监听状态轮询
+    // 监听状态轮询（STARTED 感知）
     val listenerState = remember { mutableStateOf(ListenerStatus.displayState(context)) }
     LaunchedEffect(Unit) {
-        while (true) {
-            listenerState.value = ListenerStatus.displayState(context)
-            delay(3_000)
+        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                listenerState.value = ListenerStatus.displayState(context)
+                delay(3_000)
+            }
         }
     }
 
-    // 待确认账单轮询
+    // 待确认账单轮询（STARTED 感知）
     var pending by remember { mutableStateOf<List<PendingConfirmStore.Pending>>(PendingConfirmStore.all()) }
     LaunchedEffect(Unit) {
-        while (true) {
-            pending = PendingConfirmStore.all()
-            delay(1_000)
+        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                pending = PendingConfirmStore.all()
+                delay(1_000)
+            }
         }
     }
 
@@ -276,45 +292,47 @@ fun AppRoot() {
         )
     }
 
-    // 记一笔 / 编辑（全屏计算器，一个入口两用；分享草稿仅添加模式生效）
+    // 记一笔 / 编辑（全屏计算器，一个入口两用；editorKey 变化强制重建以应用新草稿）
     if (adding || editing != null) {
-        TxEditor(
-            tx = editing,
-            draft = shareDraft,
-            onClose = { adding = false; editing = null; shareDraft = null },
-            onSave = { amount, income, category, note ->
-                val tx = editing
-                scope.launch {
-                    if (tx == null) {
-                        dao.insertIgnore(
-                            TxEntity(
-                                amountCents = amount,
-                                isIncome = income,
-                                category = category,
-                                note = note,
-                                source = Source.MANUAL,
-                                time = System.currentTimeMillis(),
-                                dedupeKey = "MANUAL|${System.nanoTime()}",
+        androidx.compose.runtime.key(editorKey) {
+            TxEditor(
+                tx = editing,
+                draft = shareDraft,
+                onClose = { adding = false; editing = null; shareDraft = null },
+                onSave = { amount, income, category, note ->
+                    val tx = editing
+                    scope.launch {
+                        if (tx == null) {
+                            dao.insertIgnore(
+                                TxEntity(
+                                    amountCents = amount,
+                                    isIncome = income,
+                                    category = category,
+                                    note = note,
+                                    source = Source.MANUAL,
+                                    time = System.currentTimeMillis(),
+                                    dedupeKey = "MANUAL|${System.nanoTime()}",
+                                )
                             )
-                        )
-                    } else {
-                        dao.update(
-                            tx.copy(amountCents = amount, isIncome = income, category = category, note = note)
-                        )
+                        } else {
+                            dao.update(
+                                tx.copy(amountCents = amount, isIncome = income, category = category, note = note)
+                            )
+                        }
+                        runCatching { com.yang.jizhang.widget.WidgetSync.refresh(context) }
+                        com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
                     }
-                    runCatching { com.yang.jizhang.widget.WidgetSync.refresh(context) }
-                    com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
-                }
-                adding = false
-                editing = null
-                shareDraft = null
-            },
-            onDelete = {
-                val tx = editing
-                if (tx != null) scope.launch { dao.delete(tx) }
-                editing = null
-            },
-        )
+                    adding = false
+                    editing = null
+                    shareDraft = null
+                },
+                onDelete = {
+                    val tx = editing
+                    editing = null
+                    if (tx != null) deleteWithUndo(tx) // 编辑页删除同样可撤销
+                },
+            )
+        }
     }
 
     // 导出菜单

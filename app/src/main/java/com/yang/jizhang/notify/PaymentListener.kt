@@ -281,8 +281,8 @@ class PaymentListener : NotificationListenerService() {
             com.yang.jizhang.util.BudgetAlertHelper.checkAsync(applicationContext)
         }
 
-        // 低调通知：自动记了一笔（可点击进 App 查看）
-        try {
+        // 低调通知：自动记了一笔（可点击进 App 查看）；并发去重被 IGNORE 时 id=-1，不再谎报
+        if (id != -1L) try {
             com.yang.jizhang.notify.keepalive.NotificationChannels.notifyPaymentDetected(
                 applicationContext,
                 parsed.amountCents,

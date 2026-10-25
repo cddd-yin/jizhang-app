@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -74,7 +75,8 @@ fun RecordsTab(
     val incomeTotal = filtered.sumOf { if (it.isIncome) it.amountCents else 0L }
 
     Column(
-        Modifier.fillMaxSize().statusBarsPadding(),
+        // 键盘弹出时列表收缩到可见区（v3.5.0）
+        Modifier.fillMaxSize().statusBarsPadding().imePadding(),
     ) {
         // 顶部：大标题 + 月份切换 + 搜索
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -131,10 +133,10 @@ fun RecordsTab(
                         shape = MaterialTheme.shapes.large,
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     ) {
-                        if (searchQuery.isBlank()) {
+                        if (searchQuery.isBlank() && categoryFilter.isBlank()) {
                             EmptyState("🪙", "本月暂无记录", "点右下角 + 记一笔，支付后也会自动记录")
                         } else {
-                            EmptyState("🔍", "没有匹配的记录", "换个关键词试试（备注 / 分类 / 来源）")
+                            EmptyState("🔍", "没有匹配的记录", "试试清空搜索或分类筛选")
                         }
                     }
                 }
@@ -211,6 +213,7 @@ private fun dayKey(millis: Long): Int {
 
 @Composable
 private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Text(
         label,
         fontSize = 12.sp,
@@ -223,7 +226,10 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 if (selected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceVariant
             )
-            .clickable(onClick = onClick)
+            .clickable {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
             .padding(horizontal = 12.dp, vertical = 7.dp),
     )
 }
@@ -270,12 +276,12 @@ private fun SearchField(
                 },
             )
             if (value.isNotEmpty()) {
-                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(22.dp)) {
+                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Outlined.Close,
                         contentDescription = "清空",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
