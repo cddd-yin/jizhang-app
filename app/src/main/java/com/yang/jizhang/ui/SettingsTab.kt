@@ -12,6 +12,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +28,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BatteryChargingFull
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
@@ -76,6 +79,9 @@ fun SettingsTab(
     listenerState: ListenerStatus.DisplayState,
     onExport: () -> Unit,
     onOpenRecurring: () -> Unit,
+    themePreset: JzPreset,
+    themeMode: JzMode,
+    onThemeChange: (JzPreset, JzMode) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -200,6 +206,40 @@ fun SettingsTab(
             ) { openBatteryOptimization(context) }
         }
 
+        // ── 外观（v3.7.0）──
+        SettingsHeader("外观")
+        SettingsCard {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text("深浅模式", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    JzMode.entries.forEach { m ->
+                        ModeCell(
+                            label = m.label,
+                            selected = themeMode == m,
+                            modifier = Modifier.weight(1f),
+                        ) { onThemeChange(themePreset, m) }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("配色风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(10.dp))
+                // 2 行 × 3 列主题色卡（当前主色描边高亮，即点即生效）
+                JzPreset.entries.chunked(3).forEach { rowPresets ->
+                    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                        rowPresets.forEach { p ->
+                            PresetCard(
+                                preset = p,
+                                selected = themePreset == p,
+                                modifier = Modifier.weight(1f),
+                            ) { onThemeChange(p, themeMode) }
+                        }
+                        repeat(3 - rowPresets.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+
         // ── 周期记账 ──
         SettingsHeader("周期记账")
         SettingsCard {
@@ -260,6 +300,98 @@ fun SettingsTab(
         }
 
         Spacer(Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun ModeCell(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Box(
+        modifier
+            .padding(horizontal = 3.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** 主题预设色卡：渐变圆点 + 名称，选中描边 */
+@Composable
+private fun PresetCard(
+    preset: JzPreset,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Column(
+        modifier
+            .padding(horizontal = 3.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                else androidx.compose.ui.graphics.Color.Transparent
+            )
+            .border(
+                width = if (selected) 1.5.dp else 0.5.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp),
+            )
+            .clickable {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(preset.accentLight, preset.accentDark)
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            preset.label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

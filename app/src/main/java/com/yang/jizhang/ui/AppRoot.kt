@@ -79,6 +79,10 @@ fun AppRoot() {
     val scope = rememberCoroutineScope()
     val dao = remember { (context.applicationContext as JizhangApp).db.txDao() }
 
+    // ── 主题（v3.7.0：5 套预设 × 3 档深浅，设置页即点即生效并落盘） ──
+    var themePreset by remember { mutableStateOf(ThemePrefs.preset(context)) }
+    var themeMode by remember { mutableStateOf(ThemePrefs.mode(context)) }
+
     // ── 全局状态 ──
     val today = remember { Calendar.getInstance() }
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -95,6 +99,14 @@ fun AppRoot() {
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+
+    // 主题应用：模式换算 + 全树包裹（弹窗/弹层一并生效）
+    val darkTheme = when (themeMode) {
+        JzMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        JzMode.LIGHT -> false
+        JzMode.DARK -> true
+    }
+    JizhangTheme(darkTheme = darkTheme, preset = themePreset) {
 
     // ── 交互基础（v3.3.0）──
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -261,6 +273,13 @@ fun AppRoot() {
                     listenerState = listenerState.value,
                     onExport = { showExport = true },
                     onOpenRecurring = { showRecurring = true },
+                    themePreset = themePreset,
+                    themeMode = themeMode,
+                    onThemeChange = { p, m ->
+                        themePreset = p
+                        themeMode = m
+                        ThemePrefs.save(context, p, m)
+                    },
                 )
             }
         }
@@ -371,6 +390,8 @@ fun AppRoot() {
             onClose = { showRecurring = false },
         )
     }
+
+    } // JizhangTheme
 }
 
 internal fun handleExportResult(context: Context, uri: Uri?) {

@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -73,7 +72,7 @@ fun categoryHue(category: String): Color = when (category) {
 /** 彩色分类圆徽：色相底 + emoji 图标（Expenso 标志性元素） */
 @Composable
 fun CategoryCircle(category: String, size: Dp = 42.dp, modifier: Modifier = Modifier) {
-    val dark = isSystemInDarkTheme()
+    val dark = LocalJzDark.current
     val hue = categoryHue(category)
     Box(
         modifier

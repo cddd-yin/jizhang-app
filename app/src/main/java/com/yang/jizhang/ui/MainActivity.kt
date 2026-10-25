@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             handleIntent(intent)
         }
-        setContent { JizhangTheme { AppRoot() } }
+        setContent { AppRoot() }
     }
 
     override fun onNewIntent(intent: Intent) {
