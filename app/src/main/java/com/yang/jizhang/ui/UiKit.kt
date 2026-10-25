@@ -270,9 +270,9 @@ private fun androidx.compose.foundation.layout.RowScope.TxRowContent(tx: TxEntit
 // ── 空状态 ──
 
 @Composable
-fun EmptyState(emoji: String, title: String, hint: String, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(emoji, fontSize = 42.sp)
+fun EmptyState(title: String, hint: String, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(vertical = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("¥", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
         Spacer(Modifier.height(10.dp))
         Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))

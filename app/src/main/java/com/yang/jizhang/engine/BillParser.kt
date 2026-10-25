@@ -62,7 +62,7 @@ object BillParser {
 
     /** 银行/其他 App 的动账通知走通用规格（尾号+支出/收入关键词） */
     private val genericChannel = ChannelSpec(
-        "银行", emptySet(),
+        "银行卡", emptySet(),
         incomeWords = listOf("收入", "入账", "转入", "到账", "退款"),
         expenseWords = listOf("支出", "消费", "转出", "扣款", "缴费"),
     )

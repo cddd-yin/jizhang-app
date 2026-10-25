@@ -240,7 +240,7 @@ fun HomeTab(
                     shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
                 ) {
-                    EmptyState("🪙", "还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
+                    EmptyState("还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
                 }
             }
         } else {
@@ -353,9 +353,7 @@ private fun BudgetCard(
             val cats = progresses.filter { it.budget.category.isNotEmpty() }
 
             if (progresses.isEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Text("🧭", fontSize = 34.sp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text("设置预算", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
                 Text(

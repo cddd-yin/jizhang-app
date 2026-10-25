@@ -136,9 +136,9 @@ fun RecordsTab(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     ) {
                         if (searchQuery.isBlank() && categoryFilter.isBlank()) {
-                            EmptyState("🪙", "本月暂无记录", "点右下角 + 记一笔，支付后也会自动记录")
+                            EmptyState("本月暂无记录", "点右下角 + 记一笔，支付后也会自动记录")
                         } else {
-                            EmptyState("🔍", "没有匹配的记录", "试试清空搜索或分类筛选")
+                            EmptyState("没有匹配的记录", "试试清空搜索或分类筛选")
                         }
                     }
                 }

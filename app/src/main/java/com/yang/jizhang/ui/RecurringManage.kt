@@ -108,7 +108,7 @@ fun RecurringManageScreen(
                             shape = MaterialTheme.shapes.large,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            EmptyState("🔁", "还没有周期规则", "房租、工资、订阅这类固定收支，设一次每期自动记")
+                            EmptyState("还没有周期规则", "房租、工资、订阅这类固定收支，设一次每期自动记")
                         }
                     }
                 }

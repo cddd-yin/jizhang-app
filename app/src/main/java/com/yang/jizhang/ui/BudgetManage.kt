@@ -138,7 +138,7 @@ fun BudgetManageScreen(
                                         Modifier.size(40.dp).clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                         contentAlignment = Alignment.Center,
-                                    ) { Text("🐳", fontSize = 18.sp) }
+                                    ) { Text("¥", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
                                 } else {
                                     CategoryCircle(b.category, size = 40.dp)
                                 }
