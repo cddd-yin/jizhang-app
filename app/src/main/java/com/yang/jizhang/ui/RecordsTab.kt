@@ -1,6 +1,8 @@
 package com.yang.jizhang.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -31,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,7 +44,7 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * 明细页：月份切换 + 搜索（备注/分类/来源）+ 按日分组账单。
+ * 明细页：月份切换 + 搜索（备注/分类/来源）+ 分类筛选 + 按日分组账单。
  * 日分组头带当日支/收小计，组内为彩色圆徽交易行。
  */
 @Composable
@@ -53,13 +57,16 @@ fun RecordsTab(
     onItemClick: (TxEntity) -> Unit,
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    val filtered = remember(txs, searchQuery) {
+    var categoryFilter by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(txs, searchQuery, categoryFilter) {
         val q = searchQuery.trim()
-        if (q.isEmpty()) txs
-        else txs.filter {
-            it.note.contains(q, ignoreCase = true) ||
-                it.category.contains(q, ignoreCase = true) ||
-                it.source.contains(q, ignoreCase = true)
+        txs.filter { tx ->
+            val matchQuery = q.isEmpty() ||
+                tx.note.contains(q, ignoreCase = true) ||
+                tx.category.contains(q, ignoreCase = true) ||
+                tx.source.contains(q, ignoreCase = true)
+            val matchCategory = categoryFilter.isEmpty() || tx.category == categoryFilter
+            matchQuery && matchCategory
         }
     }
     val expenseTotal = filtered.sumOf { if (it.isIncome) 0L else it.amountCents }
@@ -93,6 +100,17 @@ fun RecordsTab(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
+            // 分类筛选（v3.2）：横向 chips，与搜索叠加过滤
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                item {
+                    FilterChip("全部", categoryFilter.isEmpty()) { categoryFilter = "" }
+                }
+                items(com.yang.jizhang.CategoryRules.ALL_CATEGORIES.size) { i ->
+                    val cat = com.yang.jizhang.CategoryRules.ALL_CATEGORIES[i]
+                    FilterChip(cat, categoryFilter == cat) { categoryFilter = if (categoryFilter == cat) "" else cat }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
         }
 
         // 分组列表
@@ -181,6 +199,25 @@ private fun groupByDay(txs: List<TxEntity>): List<DayGroup> {
 private fun dayKey(millis: Long): Int {
     val c = Calendar.getInstance().apply { timeInMillis = millis }
     return c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
+}
+
+@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 12.sp,
+        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }
 
 @Composable

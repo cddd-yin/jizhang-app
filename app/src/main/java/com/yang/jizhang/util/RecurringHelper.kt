@@ -55,6 +55,9 @@ object RecurringHelper {
             } catch (_: Exception) {
             }
         }
+        if (inserted > 0) {
+            runCatching { BudgetAlertHelper.check(context, now) }
+        }
         return inserted
     }
 

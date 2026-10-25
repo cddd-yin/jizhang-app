@@ -139,6 +139,8 @@ class KeepAliveService : Service() {
         refreshNotification(this)
         // 周期记账补账兜底（App 未打开时也能按期入账；内部有幂等去重）
         RecurringHelper.processDueAsync(this)
+        // 预算超支提醒兜底（内部 60 秒节流）
+        com.yang.jizhang.util.BudgetAlertHelper.checkAsync(this)
 
         if (!ListenerStatus.isEnabledInSettings(this)) {
             failStreak = 0

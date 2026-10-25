@@ -110,6 +110,10 @@ fun SettingsTab(
                 if (n > 0) "导入成功，新增 $n 条" else "导入失败：请选择支付宝/微信导出的账单 CSV",
                 android.widget.Toast.LENGTH_LONG,
             ).show()
+            if (n > 0) {
+                com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
+                com.yang.jizhang.widget.WidgetSync.refreshAsync(context)
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 package com.yang.jizhang.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,7 +21,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,14 +33,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
 import java.util.Calendar
 
 /**
- * 统计页：月度浏览 + 本月结余总览 + 近 6 个月支出柱状图 + 收入分类占比环 + 本月支出分类。
- * 计算口径与 v2.x 相同，展示全部换新。
+ * 统计页（v3.2 起支持月 / 年双模式）：
+ * 月模式：本月结余总览 + 近 6 个月支出柱状图 + 收入分类占比环 + 本月支出分类条。
+ * 年模式：年度结余总览 + 近 6 年支出柱状图 + 年度收入分类占比环 + 年度支出分类条。
  */
 @Composable
 fun StatsTab(
@@ -48,11 +51,14 @@ fun StatsTab(
     month: Int,
     onMonthChange: (Int, Int) -> Unit,
 ) {
+    var mode by rememberSaveable { mutableStateOf("month") }
+    val isYear = mode == "year"
+
+    // ── 月模式数据 ──
     val expense = txs.filter { !it.isIncome }
     val expenseTotal = expense.sumOf { it.amountCents }
     val incomeTotal = txs.filter { it.isIncome }.sumOf { it.amountCents }
 
-    // 近 6 个月（含浏览月）边界
     val months = remember(year, month) {
         val cal = Calendar.getInstance().apply {
             set(year, month - 1, 1, 0, 0, 0)
@@ -69,7 +75,6 @@ fun StatsTab(
     val sixMonthTxs by dao.watchSince(months.first().first)
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
-    // 柱色：当前月满色、其余降透明（色在组合期取好，remember 内不再读主题）
     val barCurrent = accentColor()
     val barOther = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
     val expenseByMonth = remember(sixMonthTxs, months, barCurrent, barOther) {
@@ -83,32 +88,77 @@ fun StatsTab(
         }
     }
 
-    // 收入分类占比（近 6 个月，超 6 类聚合「其他」）
-    val incomeByCategory = remember(sixMonthTxs) {
+    val incomeByCategoryMonth = remember(sixMonthTxs) {
         sixMonthTxs.filter { it.isIncome }
             .groupBy { it.category }
             .map { (cat, list) -> Triple(cat, list.sumOf { it.amountCents }, list.size) }
             .sortedByDescending { it.second }
     }
-    val incomeTop = remember(incomeByCategory) {
-        if (incomeByCategory.size <= 6) incomeByCategory
-        else incomeByCategory.take(5) + Triple(
-            "其他",
-            incomeByCategory.drop(5).sumOf { it.second },
-            incomeByCategory.drop(5).sumOf { it.third },
-        )
-    }
-    val incomeTotal6 = incomeTop.sumOf { it.second }
-    val pieData = incomeTop.mapIndexed { i, (cat, cents, _) ->
-        ChartEntry(cat, cents.toDouble(), JzChartColors[i % JzChartColors.size])
-    }
+    val incomeTopMonth = remember(incomeByCategoryMonth) { aggregateTop(incomeByCategoryMonth) }
 
-    // 本月支出分类
-    val byCategory = remember(expense) {
+    val byCategoryMonth = remember(expense) {
         expense.groupBy { it.category }
             .map { (cat, list) -> Triple(cat, list.sumOf { it.amountCents }, list.size) }
             .sortedByDescending { it.second }
     }
+
+    // ── 年模式数据 ──
+    val yearRange = remember(year) {
+        val cal = Calendar.getInstance().apply {
+            set(year, 0, 1, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val start = cal.timeInMillis
+        cal.add(Calendar.YEAR, 1)
+        longArrayOf(start, cal.timeInMillis)
+    }
+    val yearTxs by dao.watchRange(yearRange[0], yearRange[1] - 1)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val yearExpenseTotal = yearTxs.filter { !it.isIncome }.sumOf { it.amountCents }
+    val yearIncomeTotal = yearTxs.filter { it.isIncome }.sumOf { it.amountCents }
+
+    val years = remember(year) {
+        val cal = Calendar.getInstance().apply {
+            set(year - 5, 0, 1, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        (0 until 6).map {
+            val start = cal.timeInMillis
+            val label = "${cal.get(Calendar.YEAR)}"
+            cal.add(Calendar.YEAR, 1)
+            Triple(start, cal.timeInMillis, label)
+        }
+    }
+    val sixYearTxs by dao.watchSince(years.first().first)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val expenseByYear = remember(sixYearTxs, years, barCurrent, barOther) {
+        years.mapIndexed { i, (s, e, label) ->
+            ChartEntry(
+                label = label,
+                value = sixYearTxs.filter { !it.isIncome && it.time in s until e }
+                    .sumOf { it.amountCents }.toDouble(),
+                color = if (i == 5) barCurrent else barOther,
+            )
+        }
+    }
+    val incomeByCategoryYear = remember(yearTxs) {
+        yearTxs.filter { it.isIncome }
+            .groupBy { it.category }
+            .map { (cat, list) -> Triple(cat, list.sumOf { it.amountCents }, list.size) }
+            .sortedByDescending { it.second }
+    }
+    val incomeTopYear = remember(incomeByCategoryYear) { aggregateTop(incomeByCategoryYear) }
+    val byCategoryYear = remember(yearTxs) {
+        yearTxs.filter { !it.isIncome }
+            .groupBy { it.category }
+            .map { (cat, list) -> Triple(cat, list.sumOf { it.amountCents }, list.size) }
+            .sortedByDescending { it.second }
+    }
+
+    // ── 汇总当前口径 ──
+    val viewExpense = if (isYear) yearExpenseTotal else expenseTotal
+    val viewIncome = if (isYear) yearIncomeTotal else incomeTotal
+    val viewTxs = if (isYear) yearTxs else txs
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -121,11 +171,21 @@ fun StatsTab(
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Text("统计", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
                 Spacer(Modifier.height(12.dp))
-                MonthSwitcher(
-                    title = "$year 年 $month 月",
-                    onPrev = { if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1) },
-                    onNext = { if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1) },
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MonthSwitcher(
+                        title = if (isYear) "$year 年" else "$year 年 $month 月",
+                        onPrev = {
+                            if (isYear) onMonthChange(year - 1, month)
+                            else if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1)
+                        },
+                        onNext = {
+                            if (isYear) onMonthChange(year + 1, month)
+                            else if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1)
+                        },
+                    )
+                    Spacer(Modifier.weight(1f))
+                    ModeToggle(isYear) { mode = if (it) "year" else "month" }
+                }
             }
         }
 
@@ -137,9 +197,9 @@ fun StatsTab(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             ) {
                 Column(Modifier.padding(18.dp)) {
-                    val balance = incomeTotal - expenseTotal
+                    val balance = viewIncome - viewExpense
                     Text(
-                        "结余",
+                        if (isYear) "年度结余" else "结余",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -153,7 +213,7 @@ fun StatsTab(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "支出 ${fmtCents(expenseTotal)} · 收入 ${fmtCents(incomeTotal)} · 共 ${txs.size} 笔",
+                        "支出 ${fmtCents(viewExpense)} · 收入 ${fmtCents(viewIncome)} · 共 ${viewTxs.size} 笔",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -161,15 +221,18 @@ fun StatsTab(
             }
         }
 
-        // ── 近 6 个月支出 ──
-        item(key = "bar_label") { SectionLabel("近 6 个月支出", Modifier.padding(top = 8.dp)) }
+        // ── 支出趋势柱状 ──
+        item(key = "bar_label") {
+            SectionLabel(if (isYear) "近 6 年支出" else "近 6 个月支出", Modifier.padding(top = 8.dp))
+        }
         item(key = "bar_card") {
+            val bars = if (isYear) expenseByYear else expenseByMonth
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                if (expenseByMonth.all { it.value <= 0.0 }) {
+                if (bars.all { it.value <= 0.0 }) {
                     Text(
                         "暂无支出记录",
                         fontSize = 14.sp,
@@ -179,7 +242,7 @@ fun StatsTab(
                     )
                 } else {
                     BarChart(
-                        data = expenseByMonth,
+                        data = bars,
                         modifier = Modifier.fillMaxWidth().height(170.dp).padding(10.dp),
                     )
                 }
@@ -187,7 +250,10 @@ fun StatsTab(
         }
 
         // ── 收入分类占比 ──
-        item(key = "pie_label") { SectionLabel("收入分类（近 6 个月）") }
+        item(key = "pie_label") {
+            SectionLabel(if (isYear) "收入分类（本年）" else "收入分类（近 6 个月）")
+        }
+        val incomeTop = if (isYear) incomeTopYear else incomeTopMonth
         if (incomeTop.isEmpty()) {
             item(key = "pie_empty") {
                 Surface(
@@ -206,6 +272,10 @@ fun StatsTab(
             }
         } else {
             item(key = "pie_card") {
+                val incomeTotalView = incomeTop.sumOf { it.second }
+                val pieData = incomeTop.mapIndexed { i, (cat, cents, _) ->
+                    ChartEntry(cat, cents.toDouble(), JzChartColors[i % JzChartColors.size])
+                }
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
@@ -236,7 +306,7 @@ fun StatsTab(
                                     Text(fmtCents(cents), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                     Spacer(Modifier.width(6.dp))
                                     Text(
-                                        if (incomeTotal6 > 0) "%.0f%%".format(cents.toFloat() / incomeTotal6 * 100) else "0%",
+                                        if (incomeTotalView > 0) "%.0f%%".format(cents.toFloat() / incomeTotalView * 100) else "0%",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -249,7 +319,11 @@ fun StatsTab(
         }
 
         // ── 支出分类 ──
-        item(key = "cat_label") { SectionLabel("支出分类（本月）") }
+        item(key = "cat_label") {
+            SectionLabel(if (isYear) "支出分类（本年）" else "支出分类（本月）")
+        }
+        val byCategory = if (isYear) byCategoryYear else byCategoryMonth
+        val catTotal = if (isYear) yearExpenseTotal else expenseTotal
         if (byCategory.isEmpty()) {
             item(key = "cat_empty") {
                 Surface(
@@ -303,7 +377,7 @@ fun StatsTab(
                                         Box(
                                             Modifier
                                                 .fillMaxWidth(
-                                                    if (expenseTotal > 0) (cents.toFloat() / expenseTotal).coerceIn(0.02f, 1f) else 0f,
+                                                    if (catTotal > 0) (cents.toFloat() / catTotal).coerceIn(0.02f, 1f) else 0f,
                                                 )
                                                 .height(5.dp)
                                                 .clip(RoundedCornerShape(3.dp))
@@ -323,6 +397,50 @@ fun StatsTab(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** 超 6 类时聚合为「其他」 */
+private fun aggregateTop(
+    list: List<Triple<String, Long, Int>>,
+): List<Triple<String, Long, Int>> =
+    if (list.size <= 6) list
+    else list.take(5) + Triple(
+        "其他",
+        list.drop(5).sumOf { it.second },
+        list.drop(5).sumOf { it.third },
+    )
+
+/** 月 / 年模式切换（胶囊分段） */
+@Composable
+private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(50),
+    ) {
+        Row(Modifier.padding(4.dp)) {
+            listOf(false to "月", true to "年").forEach { (isYear, label) ->
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (yearSelected == isYear) MaterialTheme.colorScheme.primary
+                            else androidx.compose.ui.graphics.Color.Transparent
+                        )
+                        .clickable { onSelect(isYear) }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (yearSelected == isYear) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

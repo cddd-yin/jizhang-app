@@ -19,11 +19,13 @@ object NotificationChannels {
     const val CHANNEL_CONFIRM = "payment_confirm"
     const val CHANNEL_KEEP_ALIVE = "keep_alive"
     const val CHANNEL_LISTENER_ALERT = "listener_alert"
+    const val CHANNEL_BUDGET = "budget_alert"
 
     private const val ID_PAYMENT_BASE = 2001
     private const val ID_CONFIRM_BASE = 3001
     const val ID_KEEP_ALIVE = 1002
     const val ID_LISTENER_DOWN = 1003
+    private const val ID_BUDGET_BASE = 4001
 
     fun ensure(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -69,6 +71,17 @@ object NotificationChannels {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "支付监听长时间未连上时提醒"
+                enableVibration(true)
+                setShowBadge(true)
+            }
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_BUDGET,
+                "预算提醒",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "预算用到 80%、用完或超支时提醒"
                 enableVibration(true)
                 setShowBadge(true)
             }
@@ -128,6 +141,30 @@ object NotificationChannels {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         manager.notify(ID_PAYMENT_BASE + (transactionId % 100000).toInt(), notification)
+    }
+
+    /**
+     * 预算提醒通知（80% / 用完 / 超支三档，点击打开 App）。
+     */
+    fun notifyBudgetAlert(context: Context, title: String, text: String) {
+        ensure(context)
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(text)
+                    .setBigContentTitle(title)
+            )
+            .setContentIntent(openAppPendingIntent(context, ID_BUDGET_BASE))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        // 同预算同档只保留最新一条：标题做 notificationId 的稳定种子
+        manager.notify(ID_BUDGET_BASE + (title.hashCode() % 100000).toInt(), notification)
     }
 
     /**

@@ -222,6 +222,7 @@ fun AppRoot() {
                             dedupeKey = p.dedupeKey,
                         )
                     )
+                    com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
                 }
                 PendingConfirmStore.remove(p.id)
             },
@@ -256,6 +257,7 @@ fun AppRoot() {
                         )
                     }
                     runCatching { com.yang.jizhang.widget.WidgetSync.refresh(context) }
+                    com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
                 }
                 adding = false
                 editing = null

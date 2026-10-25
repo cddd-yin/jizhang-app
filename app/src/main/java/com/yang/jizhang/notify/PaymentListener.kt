@@ -276,6 +276,11 @@ class PaymentListener : NotificationListenerService() {
         )
         Log.d(TAG, "Saved: id=$id ${parsed.amountCents} ${if (parsed.isIncome) "收入" else "支出"} ${parsed.source}")
 
+        // 预算超支本地提醒（真实入库后才检查）
+        if (id != -1L) {
+            com.yang.jizhang.util.BudgetAlertHelper.checkAsync(applicationContext)
+        }
+
         // 低调通知：自动记了一笔（可点击进 App 查看）
         try {
             com.yang.jizhang.notify.keepalive.NotificationChannels.notifyPaymentDetected(
