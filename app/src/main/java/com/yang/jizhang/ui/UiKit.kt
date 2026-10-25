@@ -9,12 +9,14 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -337,8 +339,8 @@ fun AnimatedAmountText(
 // ── 消费日历热力图（v3.10.0，GitHub 贡献图风格） ──
 
 /**
- * 某月按日支出热力：7 列网格（周一为首列），每日方块深浅随当日支出分 5 档。
- * todayRing：给今日画描边。
+ * 某月按日支出热力（v4.3.0 改正宗 GitHub 贡献图形式）：
+ * 横向周列排布（每列一周，周一行首），主题色 5 档色阶方块，今日描边。
  */
 @Composable
 fun ExpenseCalendar(
@@ -365,52 +367,76 @@ fun ExpenseCalendar(
     val isCurrentMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) + 1 == month1
     val todayDay = today.get(Calendar.DAY_OF_MONTH)
 
+    // GitHub 五档色阶（无支出 → 主题色四档渐深）
+    fun levelColor(spend: Long?): androidx.compose.ui.graphics.Color = when {
+        spend == null || spend <= 0 -> faint.copy(alpha = 0.45f)
+        spend <= maxSpend / 4 -> accent.copy(alpha = 0.30f)
+        spend <= maxSpend / 2 -> accent.copy(alpha = 0.55f)
+        spend <= maxSpend * 3 / 4 -> accent.copy(alpha = 0.80f)
+        else -> accent
+    }
+
     Column(modifier) {
-        // 周表头（周一为第一列）
+        // 横向周列：左侧周标签 + 每周一方块列（GitHub 贡献图布局）
         Row(Modifier.fillMaxWidth()) {
-            listOf("一", "二", "三", "四", "五", "六", "日").forEach {
-                Text(
-                    it,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
+            // 周标签列（紧凑，只标一/三/五）
+            Column(Modifier.padding(end = 6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                listOf("一", "", "三", "", "五", "", "日").forEach {
+                    Text(
+                        it,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.height(13.dp).wrapContentWidth(),
+                    )
+                }
             }
-        }
-        weeks.forEach { week ->
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                week.forEach { day ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .padding(2.dp)
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(
-                                if (day == null) androidx.compose.ui.graphics.Color.Transparent
-                                else if (daySpend[day] == null) faint.copy(alpha = 0.45f)
-                                else accent.copy(alpha = 0.30f + 0.70f * (daySpend[day]!!.toFloat() / maxSpend))
-                            )
-                            .then(
-                                if (isCurrentMonth && day == todayDay) {
-                                    Modifier.border(1.5.dp, accent, RoundedCornerShape(5.dp))
-                                } else Modifier
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (day != null) {
-                            Text(
-                                "$day",
-                                fontSize = 10.sp,
-                                color = if (daySpend[day] != null && daySpend[day]!! > maxSpend / 2)
-                                    androidx.compose.ui.graphics.Color.White
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
+            // 周列（横向排布、等宽拉伸）
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                weeks.forEach { week ->
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        week.forEach { day ->
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(2.5.dp))
+                                    .background(
+                                        if (day == null) androidx.compose.ui.graphics.Color.Transparent
+                                        else levelColor(daySpend[day])
+                                    )
+                                    .then(
+                                        if (isCurrentMonth && day == todayDay) {
+                                            Modifier.border(1.5.dp, accent, RoundedCornerShape(2.5.dp))
+                                        } else Modifier
+                                    ),
                             )
                         }
                     }
                 }
             }
+        }
+        // 图例（GitHub 同款 少 □□□□ 多）
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("少", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(4.dp))
+            listOf(0.45f, 0.30f, 0.55f, 0.80f, 1f).forEachIndexed { i, a ->
+                Box(
+                    Modifier
+                        .padding(horizontal = 1.5.dp)
+                        .size(9.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            if (i == 0) faint.copy(alpha = 0.45f)
+                            else accent.copy(alpha = a)
+                        ),
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Text("多", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
