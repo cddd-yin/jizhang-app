@@ -26,6 +26,7 @@ object NotificationChannels {
     const val ID_KEEP_ALIVE = 1002
     const val ID_LISTENER_DOWN = 1003
     private const val ID_BUDGET_BASE = 4001
+    private const val ID_DIGEST = 5001
 
     fun ensure(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -165,6 +166,40 @@ object NotificationChannels {
             .build()
         // 同预算同档只保留最新一条：标题做 notificationId 的稳定种子
         manager.notify(ID_BUDGET_BASE + (title.hashCode() % 100000).toInt(), notification)
+    }
+
+    /**
+     * 每日自动记账小结（v3.11.0）：晚间汇总，供核对防漏记。
+     */
+    fun notifyDailyDigest(context: Context, count: Int, expenseCents: Long, incomeCents: Long) {
+        ensure(context)
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val title = "今日自动记账 $count 笔"
+        val expText = String.format("%.2f", expenseCents / 100.0)
+        val incText = String.format("%.2f", incomeCents / 100.0)
+        val detail = buildString {
+            append("支出 ¥$expText")
+            if (incomeCents > 0) {
+                append(" · 收入 ¥$incText")
+            }
+            append("\n点开核对一下，确认没有漏记")
+        }
+        val notification = NotificationCompat.Builder(context, CHANNEL_PAYMENT)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title)
+            .setContentText(detail)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(detail)
+                    .setBigContentTitle(title)
+            )
+            .setContentIntent(openAppPendingIntent(context, ID_DIGEST))
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        manager.notify(ID_DIGEST, notification)
     }
 
     /**

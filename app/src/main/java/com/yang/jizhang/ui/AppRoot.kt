@@ -319,9 +319,11 @@ fun AppRoot() {
                 tx = editing,
                 draft = shareDraft,
                 onClose = { adding = false; editing = null; shareDraft = null },
-                onSave = { amount, income, category, note ->
-                    val tx = editing
-                    scope.launch {
+            onSave = { amount, income, category, note ->
+                val tx = editing
+                // 分类自学习（v3.11.0）：记住这笔的「商户→分类」，下次自动记账直接用
+                com.yang.jizhang.util.CategoryLearner.learn(context, note, category)
+                scope.launch {
                         if (tx == null) {
                             dao.insertIgnore(
                                 TxEntity(

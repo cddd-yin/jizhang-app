@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                 else -> null
             }
             if (!text.isNullOrBlank()) {
-                parseShareText(text)?.let { UiBus.sharePending = it }
+                parseShareText(this, text)?.let { UiBus.sharePending = it }
             }
         }
     }

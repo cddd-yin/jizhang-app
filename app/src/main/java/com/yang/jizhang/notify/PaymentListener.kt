@@ -267,7 +267,9 @@ class PaymentListener : NotificationListenerService() {
             TxEntity(
                 amountCents = parsed.amountCents,
                 isIncome = parsed.isIncome,
-                category = CategoryRules.guess(parsed.merchant, parsed.source),
+                // 分类：先查自学习映射（v3.11.0），无则静态关键词规则
+                category = com.yang.jizhang.util.CategoryLearner.hint(applicationContext, parsed.merchant)
+                    ?: CategoryRules.guess(parsed.merchant, parsed.source),
                 note = parsed.merchant.ifBlank { parsed.source },
                 source = parsed.source,
                 time = postTime,

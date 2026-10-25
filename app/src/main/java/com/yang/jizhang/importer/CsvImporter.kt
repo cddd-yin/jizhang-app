@@ -126,7 +126,8 @@ object CsvImporter {
             val tx = TxEntity(
                 amountCents = amountCents,
                 isIncome = isIncome,
-                category = CategoryRules.guess(party, goods),
+                category = com.yang.jizhang.util.CategoryLearner.hint(context, party)
+                    ?: CategoryRules.guess(party, goods),
                 note = (party.ifBlank { goods }).ifBlank { appLabel },
                 source = Source.IMPORT,
                 time = time,

@@ -141,6 +141,11 @@ class KeepAliveService : Service() {
         RecurringHelper.processDueAsync(this)
         // 预算超支提醒兜底（内部 60 秒节流）
         com.yang.jizhang.util.BudgetAlertHelper.checkAsync(this)
+        // 每日自动记账小结（21 点后发一次，内部按日去重）
+        try {
+            com.yang.jizhang.util.DailyDigest.maybeNotify(this)
+        } catch (_: Exception) {
+        }
 
         if (!ListenerStatus.isEnabledInSettings(this)) {
             failStreak = 0

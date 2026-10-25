@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Upload
@@ -51,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -299,6 +301,17 @@ fun SettingsTab(
             CardDivider()
             ActionItem(Icons.Outlined.Restore, "恢复备份", "选择完整备份 JSON，幂等合并不产生重复") {
                 restorePicker.launch(arrayOf("application/json", "text/json", "text/plain", "*/*"))
+            }
+            CardDivider()
+            val learnerSize = remember { mutableIntStateOf(com.yang.jizhang.util.CategoryLearner.size(context)) }
+            ActionItem(
+                Icons.Outlined.Psychology,
+                "重置智能分类",
+                "已学习 ${learnerSize.intValue} 条商户→分类映射，越用越准；重置后回到关键词规则",
+            ) {
+                com.yang.jizhang.util.CategoryLearner.clear(context)
+                learnerSize.intValue = 0
+                android.widget.Toast.makeText(context, "智能分类已重置", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
 

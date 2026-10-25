@@ -28,8 +28,8 @@ private val PATTERN_KEYWORD = Regex("(?:实付|支付|付款|消费|金额|收�
 private val PATTERN_BARE = Regex("(\\d+(?:\\.\\d{1,2})?)")
 private val INCOME_HINTS = listOf("收入", "收款", "到账", "退款", "红包", "报销", "工资", "入账")
 
-/** 从分享文本中提取金额；提不出正数金额返回 null */
-fun parseShareText(raw: String): ShareDraftItem? {
+/** 从分享文本中提取金额；提不出正数金额返回 null。context 用于查分类自学习映射。 */
+fun parseShareText(context: android.content.Context?, raw: String): ShareDraftItem? {
     val text = raw.trim().replace('\n', ' ')
     if (text.isEmpty()) return null
     val amountStr = listOf(PATTERN_SYMBOL, PATTERN_YUAN, PATTERN_KEYWORD)
@@ -44,7 +44,8 @@ fun parseShareText(raw: String): ShareDraftItem? {
     if (cents <= 0) return null
 
     val isIncome = INCOME_HINTS.any { text.contains(it) }
-    var category = CategoryRules.guess(text)
+    var category = (context?.let { com.yang.jizhang.util.CategoryLearner.hint(it, text) })
+        ?: CategoryRules.guess(text)
     if (isIncome && category == "餐饮美食") category = "收入进账"
     return ShareDraftItem(
         amountCents = cents,
