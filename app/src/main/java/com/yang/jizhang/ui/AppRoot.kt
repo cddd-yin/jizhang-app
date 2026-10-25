@@ -109,6 +109,11 @@ fun AppRoot() {
         JzMode.LIGHT -> false
         JzMode.DARK -> true
     }
+    // v5.1.1：强制深/浅色时状态栏图标色跟 App 主题（修浅底浅图标不可见）
+    androidx.compose.runtime.DisposableEffect(darkTheme) {
+        (context as? MainActivity)?.applyStatusBarStyle(darkTheme)
+        onDispose { }
+    }
     JizhangTheme(darkTheme = darkTheme, preset = themePreset) {
 
     // ── 交互基础（v3.3.0）──

@@ -1,34 +1,61 @@
 package com.yang.jizhang.ui
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 
 /**
- * v3.1.0：MainActivity 是壳 + 三个入口的落地页——
- * ① 正常启动；② 分享/划词记账（ACTION_SEND / ACTION_PROCESS_TEXT）；
- * ③ 快捷磁贴「记一笔」（extra open_editor）。
- * 解析结果经 UiBus 交给 AppRoot 打开预填的记账页。
+ * v5.1.1：壳 + 入口意图落地 + 高刷/状态栏适配。
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // 仅冷启动处理入口意图；旋转/重建走 savedInstanceState 分支避免重复触发
-        if (savedInstanceState == null) {
-            handleIntent(intent)
-        }
+        applyMaxRefreshRate()
+        handleIntent(intent)
         setContent { AppRoot() }
     }
 
-    override fun onNewIntent(intent: Intent) {
+    override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
     }
 
-    private fun handleIntent(intent: Intent?) {
+    /**
+     * 高刷支持（60–120Hz 自适应）：把窗口首选显示模式设为屏幕支持的最高刷新率。
+     * 高刷屏上部分厂商对未声明的 App 锁 60Hz，导致动画掉半帧；60Hz 屏取到的最高值仍是 60，
+     * 不产生额外功耗。
+     */
+    private fun applyMaxRefreshRate() {
+        try {
+            val display = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay
+            } ?: return
+            val best = display.supportedModes.maxByOrNull { it.refreshRate } ?: return
+            window.attributes = window.attributes.apply {
+                preferredDisplayModeId = best.modeId
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    /** 供 AppRoot 在主题切换时重设状态栏图标色（强制深/浅色时跟 App 而非系统） */
+    fun applyStatusBarStyle(dark: Boolean) {
+        enableEdgeToEdge(
+            statusBarStyle = if (dark) {
+                SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            } else {
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+            },
+        )
+    }
+
+    private fun handleIntent(intent: android.content.Intent?) {
         intent ?: return
         runCatching {
             // 快捷磁贴 / 桌面小组件按钮：直接打开记一笔（组件经 Glance parameters 传字符串值）
@@ -39,8 +66,8 @@ class MainActivity : ComponentActivity() {
             }
             // 分享文本 / 划词记账
             val text = when (intent.action) {
-                Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-                Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+                android.content.Intent.ACTION_SEND -> intent.getStringExtra(android.content.Intent.EXTRA_TEXT)
+                android.content.Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
                 else -> null
             }
             if (!text.isNullOrBlank()) {

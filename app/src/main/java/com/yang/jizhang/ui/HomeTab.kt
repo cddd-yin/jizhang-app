@@ -406,7 +406,9 @@ private fun BudgetCard(
                         )
                     }
                     // v5.1.0 内置算法建议行：日均可用 / 期末外推 / 超支预警
-                    val advice = com.yang.jizhang.util.BudgetAdvisor.advise(total.budget, total.spent)
+                    val advice = remember(total.budget, total.spent) {
+                        com.yang.jizhang.util.BudgetAdvisor.advise(total.budget, total.spent)
+                    }
                     Text(
                         advice.message,
                         fontSize = 12.sp,

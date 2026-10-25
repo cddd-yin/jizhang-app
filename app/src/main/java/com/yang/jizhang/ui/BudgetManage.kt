@@ -181,7 +181,9 @@ fun BudgetManageScreen(
                                         )
                                     }
                                     // v5.1.0 内置算法建议（口径同 Firefly III left-to-spend + 外推）
-                                    val advice = com.yang.jizhang.util.BudgetAdvisor.advise(b, spent)
+                                    val advice = remember(b, spent) {
+                                        com.yang.jizhang.util.BudgetAdvisor.advise(b, spent)
+                                    }
                                     Text(
                                         advice.message,
                                         fontSize = 11.sp,
