@@ -58,6 +58,27 @@ object BillParser {
             incomeWords = listOf("退款", "返还", "入账", "到账"),
             expenseWords = listOf("消费", "支付"),
         ),
+        // 电商渠道（v4.5.0）：支付成功推送自动入账，营销/物流噪声在噪声表拦截
+        ChannelSpec(
+            "淘宝", setOf("com.taobao.taobao"),
+            incomeWords = listOf("退款", "退回"),
+            expenseWords = listOf("付款成功", "支付成功", "已付款", "成功付款"),
+        ),
+        ChannelSpec(
+            "京东", setOf("com.jingdong.app.mall", "com.jd.jrapp"),
+            incomeWords = listOf("退款", "退回"),
+            expenseWords = listOf("支付成功", "付款成功", "实付", "已付款"),
+        ),
+        ChannelSpec(
+            "拼多多", setOf("com.xunmeng.pinduoduo"),
+            incomeWords = listOf("退款", "退回"),
+            expenseWords = listOf("支付成功", "付款成功", "已付款", "免密支付"),
+        ),
+        ChannelSpec(
+            "得物", setOf("com.shizhuang.duapp"),
+            incomeWords = listOf("退款", "退回"),
+            expenseWords = listOf("支付成功", "付款成功", "已付款"),
+        ),
     )
 
     /** 银行/其他 App 的动账通知走通用规格（尾号+支出/收入关键词） */
@@ -85,7 +106,7 @@ object BillParser {
         }
     }
 
-    // ═══ 噪声过滤（营销/验证码/信贷/未成交，命中即弃；"待支付/未支付/自动取消"为 v4.0.1 吸收同类项目经验） ═══
+    // ═══ 噪声过滤（营销/验证码/信贷/未成交/物流，命中即弃；电商营销词为 v4.5.0 补充） ═══
     private val noiseKeywords = listOf(
         "验证码", "校验码", "动态码", "口令",
         "待支付", "待付款", "未支付", "自动取消", "超时未支付",
@@ -93,6 +114,9 @@ object BillParser {
         "优惠券", "红包封面", "领红包", "抽奖", "中奖", "积分", "会员日", "活动", "立减", "满减", "折扣",
         "花呗", "白条", "借呗", "备用金", "分期", "还款提醒", "账单提醒", "出账", "最低还款",
         "客服", "公告", "快递", "取件码", "登录提醒", "版本更新",
+        // 电商营销/物流噪声（v4.5.0）
+        "已发货", "物流", "发货提醒", "降价", "秒杀", "预售", "购物车", "拼团成功", "开团",
+        "催付", "爆款", "直播福利", "签到", "种草", "求拼单", "好友助力",
     )
     private val noiseRegexes = listOf(
         Regex("""验证码\s*是?\s*\d{4,8}"""),
