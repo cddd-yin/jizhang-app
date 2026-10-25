@@ -37,9 +37,17 @@ object DuplicateGuard {
             val dt = now - tx.time
             if (dt < 0 || dt > CROSS_CHANNEL_MS) return@find false
             val txNoMerchant = tx.note.isBlank() || tx.note == tx.source
+            val sameChannel = tx.source == bill.channel
+            // 窗口矩阵（v4.5.1 修跨渠道双报）：
+            // - 商户互相包含 → 同一交易双报（如"拼多多" ⊂ "拼多多XX店"）→ 150s
+            // - 跨渠道（电商+微信/支付宝/银行 同报一笔）→ 一律 150s，无商户也放行
+            //   （电商通知与扣款通知可能间隔 >15s，此前双方无商户只给 15s 会漏成两笔）
+            // - 同渠道双方无商户 → 15s 短窗（防连续两笔同额消费被吞，如两趟地铁）
+            // - 同渠道无商户关联 → 60s
             val window = when {
                 containsEither(bill.merchant, tx.note) -> CROSS_CHANNEL_MS
-                merchantBlank && txNoMerchant -> SAME_PRINT_MS
+                !sameChannel -> CROSS_CHANNEL_MS
+                sameChannel && merchantBlank && txNoMerchant -> SAME_PRINT_MS
                 else -> AMOUNT_ONLY_MS
             }
             dt <= window
