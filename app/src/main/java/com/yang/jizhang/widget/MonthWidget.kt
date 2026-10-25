@@ -69,7 +69,7 @@ class MonthWidget : GlanceAppWidget() {
         ) {
             Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Vertical.CenterVertically) {
                 Text(
-                    "蓝鲸记账 · 本月",
+                    "记账 · 本月",
                     style = TextStyle(
                         color = ColorProvider(accent),
                         fontSize = 12.sp,

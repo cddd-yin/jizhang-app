@@ -99,7 +99,7 @@ object ChannelIds {
         ensure(ctx)
         return NotificationCompat.Builder(ctx, GUARDIAN)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle("蓝鲸记账 · 自动记账运行中")
+            .setContentTitle("记账 · 自动记账运行中")
             .setContentText(stateText)
             .setOngoing(true).setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE).setPriority(NotificationCompat.PRIORITY_MIN)

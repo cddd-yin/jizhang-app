@@ -4,7 +4,7 @@ import com.yang.jizhang.CategoryRules
 
 /**
  * 分享/划词记账入口（v3.1.0）：
- * 任意 App 选中文本「在蓝鲸记账中记账」（PROCESS_TEXT）或分享文本（ACTION_SEND）
+ * 任意 App 选中文本「在记账中记账」（PROCESS_TEXT）或分享文本（ACTION_SEND）
  * → 解析金额与收支 → 预填记账页草稿。
  */
 

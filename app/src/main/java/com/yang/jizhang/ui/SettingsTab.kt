@@ -344,7 +344,7 @@ fun SettingsTab(
                     runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
                         .getOrDefault("")
                 }
-                Text("蓝鲸记账 v$versionName", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text("记账 v$versionName", fontSize = 15.sp, modifier = Modifier.weight(1f))
             }
             CardDivider()
             Row(
