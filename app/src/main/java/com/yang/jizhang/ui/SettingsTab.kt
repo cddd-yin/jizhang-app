@@ -1,0 +1,406 @@
+package com.yang.jizhang.ui
+
+import android.Manifest
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BatteryChargingFull
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.yang.jizhang.data.Source
+import com.yang.jizhang.importer.CsvImporter
+import com.yang.jizhang.notify.keepalive.ListenerStatus
+import kotlinx.coroutines.launch
+
+/**
+ * 设置页：自动记账状态与四项权限引导（原权限引导页收编为常驻 Tab）+ 数据导入导出 + 关于。
+ */
+@Composable
+fun SettingsTab(
+    contentPad: PaddingValues,
+    listenerState: ListenerStatus.DisplayState,
+    onExport: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var listenerEnabled by remember { mutableStateOf(ListenerStatus.isEnabledInSettings(context)) }
+    var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
+    var batteryIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
+
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> postNotificationsGranted = granted }
+
+    // 从系统设置返回时刷新权限状态
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                listenerEnabled = ListenerStatus.isEnabledInSettings(context)
+                postNotificationsGranted = isPostNotificationsGranted(context)
+                batteryIgnored = isBatteryOptimizationIgnored(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val n = runCatching { CsvImporter.import(context, uri, Source.IMPORT) }.getOrDefault(0)
+            android.widget.Toast.makeText(
+                context,
+                if (n > 0) "导入成功，新增 $n 条" else "导入失败：请选择支付宝/微信导出的账单 CSV",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Text(
+            "设置",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.3).sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+        )
+
+        // ── 自动记账状态 ──
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val (dot, label) = when (listenerState) {
+                    ListenerStatus.DisplayState.CONNECTED -> incomeColor() to "自动记账运行中"
+                    ListenerStatus.DisplayState.RECOVERING -> warnColor() to "支付监听重连中"
+                    ListenerStatus.DisplayState.NEED_PERMISSION -> expenseColor() to "自动记账未开启"
+                }
+                Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.width(10.dp))
+                Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(
+                    when (listenerState) {
+                        ListenerStatus.DisplayState.CONNECTED -> "支付后自动入账"
+                        ListenerStatus.DisplayState.RECOVERING -> "点权限项修复"
+                        ListenerStatus.DisplayState.NEED_PERMISSION -> "开启下方权限"
+                        else -> ""
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        // ── 权限引导 ──
+        SettingsHeader("自动记账权限")
+        SettingsCard {
+            GuideItem(
+                icon = Icons.Outlined.NotificationsActive,
+                title = "通知使用权（必须）",
+                description = "读取微信 / 支付宝 / QQ 支付通知，自动识别金额并记账",
+                granted = listenerEnabled,
+            ) { openListenerSettings(context) }
+            CardDivider()
+            GuideItem(
+                icon = Icons.Outlined.Notifications,
+                title = "发送通知（推荐）",
+                description = "显示「已记一笔」和待确认账单通知（Android 13+ 必须）",
+                granted = postNotificationsGranted,
+            ) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+            CardDivider()
+            GuideItem(
+                icon = Icons.Outlined.PowerSettingsNew,
+                title = "自启动",
+                description = "允许后台自启动，防止支付监听被杀（国产机建议开启）",
+                granted = false,
+            ) { openAutoStartSettings(context) }
+            CardDivider()
+            GuideItem(
+                icon = Icons.Outlined.BatteryChargingFull,
+                title = "忽略电池优化",
+                description = "关闭电池优化，防止监听服务在后台被系统回收",
+                granted = batteryIgnored,
+            ) { openBatteryOptimization(context) }
+        }
+
+        // ── 数据管理 ──
+        SettingsHeader("数据管理")
+        SettingsCard {
+            ActionItem(Icons.Outlined.Upload, "导入账单 CSV", "支付宝 / 微信官方导出的账单，自动去重") {
+                importPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
+            }
+            CardDivider()
+            ActionItem(Icons.Outlined.Download, "导出 / 备份账单", "导出本月或全部账单，可分享、可再导入") {
+                onExport()
+            }
+        }
+
+        // ── 关于 ──
+        SettingsHeader("关于")
+        SettingsCard {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text("蓝鲸记账 v3.0.0", fontSize = 15.sp, modifier = Modifier.weight(1f))
+            }
+            CardDivider()
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.DeleteSweep,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("数据仅存本机", fontSize = 15.sp)
+                    Text(
+                        "无网络权限，不上传任何数据；导出 CSV 可自行备份",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun SettingsHeader(text: String) {
+    Text(
+        text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun SettingsCard(content: @Composable () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+    ) {
+        Column { content() }
+    }
+}
+
+@Composable
+private fun CardDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 48.dp),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outline,
+    )
+}
+
+/** 权限条目（带已开启状态） */
+@Composable
+private fun GuideItem(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    granted: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (granted) {
+            Text("已开启", fontSize = 12.sp, color = incomeColor(), fontWeight = FontWeight.Medium)
+        } else {
+            Text("去开启 ›", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+/** 普通操作条目 */
+@Composable
+private fun ActionItem(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("›", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// ── 权限检测与跳转（自 v2.2 权限引导页移植，逻辑不变） ──
+
+internal fun isPostNotificationsGranted(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+        PackageManager.PERMISSION_GRANTED
+}
+
+private fun isBatteryOptimizationIgnored(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+private fun openAutoStartSettings(context: Context) {
+    // vivo / iQOO
+    try {
+        context.startActivity(
+            Intent().apply {
+                component = ComponentName(
+                    "com.vivo.permissionmanager",
+                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+        return
+    } catch (_: Exception) {
+    }
+    // 小米 / 红米
+    try {
+        context.startActivity(
+            Intent().apply {
+                component = ComponentName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.autostart.AutoStartManagementActivity",
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+        return
+    } catch (_: Exception) {
+    }
+    openAppDetails(context)
+}
+
+private fun openBatteryOptimization(context: Context) {
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    } catch (e: Exception) {
+        openAppDetails(context)
+    }
+}
+
+private fun openAppDetails(context: Context) {
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    } catch (e: Exception) {
+        context.startActivity(
+            Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        )
+    }
+}

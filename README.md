@@ -23,13 +23,12 @@
 - **CSV 导出 / 备份**：一键导出本月或全部账单为 CSV（带 BOM，Excel 直接打开不乱码），
   写入公共「下载/Jizhang」目录，可分享到微信/QQ/邮箱等；导出的文件可再被本 App 导入。
 - **账单搜索**：明细页顶部搜索框，按备注 / 分类 / 来源即时过滤，边输边筛。
-- **权限引导页**：右上角 ⚙ 进入「自动记账设置」，一站式引导开通通知使用权、
+- **权限引导（设置页内置）**：底部「设置」Tab 一站式引导开通通知使用权、
   发送通知（Android 13+ 首次进入自动申请）、自启动、忽略电池优化，保证「花完钱自动记账」不被后台杀掉。
-- **高级感首页（账本）**：本月结余天蓝渐变大卡（金额自动缩放）+ 支出/收入双卡 +
-  月度预算进度环（可一键设置/编辑预算，超支变红）+ 最近交易预览。
-- **高级感界面（v2.4.0 ZCode 风格）**：设计 Token 提取自智谱 ZCode 桌面应用（app.asar 内 Tailwind CSS）——
-  品牌天蓝（sky-400/sky-500）+ 中性灰阶表面分层（页面/面板/卡片，细描边）+ 收入绿/支出红语义色、
-  ZCode usage-chart 天蓝色板图表；去毛玻璃改实底紧凑顶栏与底部 Tab Bar，选中项天蓝高亮；
+- **界面（v3.0.0「深海」全新重写）**：UI 层全部推倒重写，借鉴开源 Expenso 的成熟交互——
+  深色高级感（近黑深海面 + 双层卡面）与浅色双主题、藤紫品牌色、11 类彩色圆徽分类、
+  半圆预算仪表（超支变红）、计算器键盘「记一笔」全屏记账（添加/编辑两用）、
+  按日分组明细 + 日小计、底部四 Tab（账本/明细/统计/设置）胶囊高亮导航；
   保留 Lato 数字 + Sans 正文字体（OFL）。
 - **月度统计**：按月切换，支出/收入/结余总览（结余按收支着色）+ 近 6 个月支出柱状图 +
   收入分类占比饼图 + 本月支出分类条形图。
@@ -38,7 +37,7 @@
 ## 使用步骤（首次安装后）
 
 1. 打开 App，首次进入自动申请通知权限（Android 13+）；
-2. 点击右上角 ⚙ 进入「自动记账设置」，按引导依次开启：**通知使用权（必须）** →
+2. 进入底部「设置」Tab，按引导依次开启：**通知使用权（必须）** →
    **发送通知（推荐）** → **自启动（国产机建议）** → **忽略电池优化**；
 3. 之后在支付宝/微信/QQ 每完成一笔支付，即自动生成一条记录，无需任何操作。
 
@@ -81,14 +80,14 @@ app/src/main/java/com/yang/jizhang/
 │   └── keepalive/             # 前台保活 / 状态 / 看门狗 / 通知样式
 ├── importer/              # 支付宝/微信 CSV 导入
 ├── util/                  # CSV 导出 / MediaStore 备份（抄 SmartLedger）
-└── ui/                    # Compose 界面（首页 / 明细 / 统计 / 图表 / 权限引导 / 弹窗 / 主题 / Pg 组件）
+└── ui/                    # Compose 界面（v3.0.0 全部重写：账本 / 明细 / 统计 / 设置 / 全屏记账 / 组件库 / 弹窗 / 主题）
 ```
 
 解析方案借鉴开源项目 [SmartLedger](https://github.com/huanghhcri/SmartLedger)
 （MIT License），按本项目数据模型重写，参考源码见 `docs/references/`。
-v2.3.0 的高级感界面（双层背景配色、Pg 组件、金额/进度环样式）借鉴
-[wallee (Compose-Expense)](https://github.com/wisnukurniawan/Compose-Expense)（Apache-2.0）
-与 [Expenso](https://github.com/darkvortex144/Expenso)（进度环），字体 Lato 为 OFL 许可。
-v2.4.0 界面全面改为 **ZCode 设计语言**（天蓝品牌 + 中性灰阶 + 细描边 + 紧凑工具风布局），
-设计 Token 从 ZCode 桌面应用 `%LOCALAPPDATA%\Programs\ZCode\resources\app.asar`
-内的 Tailwind CSS（`--color-*` 变量与 `.dark` 覆盖）实测提取，色值取 oklch → sRGB 转换。
+v3.0.0 界面全部推翻重写为「深海」设计（深色优先 + 藤紫主色 + 彩色分类圆徽 +
+半圆预算仪表 + 计算器键盘记账 + 四 Tab 导航），交互借鉴
+[Expenso](https://github.com/darkvortex144/Expenso)（MIT），字体 Lato 为 OFL 许可。
+历史沿革：v2.3.0 界面借鉴 [wallee (Compose-Expense)](https://github.com/wisnukurniawan/Compose-Expense)
+（Apache-2.0）；v2.4.0 曾改为 ZCode 设计语言（Token 自 ZCode 桌面应用 app.asar 实测提取，
+提取脚本见 `docs/zcode-tokens/`），v3.0.0 起弃用。
