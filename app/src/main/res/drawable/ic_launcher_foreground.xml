@@ -1,40 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v4.3.0 圆形徽章：细圆环 + ¥（圆形形式） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 细圆环（r=31，居中） -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5"
-        android:fillColor="#00000000"
-        android:pathData="M54,23 m-31,0 a31,31 0 1 1 62,0 a31,31 0 1 1 -62,0" />
-    <!-- 两臂 + 竖 + 双横（内缩适配圆环） -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M45,37 L54,48 L63,37" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M54,48 V68" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M44.5,54 H63.5" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M44.5,61 H63.5" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.88" android:scaleY="0.88">
+        <path android:fillColor="#39BFFF"
+            android:pathData="M43,34 C39,32 36,28 39,25 C42,22 46,27 46,33 Z M48,34 C49,28 54,25 57,28 C60,31 54,34 48,35 Z" />
+        <path android:fillColor="#178DFA"
+            android:pathData="M25,53 C25,43 32,37 41,37 C50,37 55,43 62,49 C66,53 70,54 73,53 C70,50 69,45 71,41 C75,42 78,45 80,49 C83,46 87,45 90,46 C89,54 84,58 78,58 C73,66 65,71 53,72 C38,73 25,66 25,53 Z" />
+        <path android:fillColor="#CAEEFF"
+            android:pathData="M25,53 C32,58 41,62 52,64 C61,66 69,64 74,61 C69,68 61,71 53,72 C39,73 27,67 25,57 Z" />
+        <path android:fillColor="#081C3B"
+            android:pathData="M36,48 a2,2 0,1 0,4 0 a2,2 0,1 0,-4 0" />
+    </group>
 </vector>
