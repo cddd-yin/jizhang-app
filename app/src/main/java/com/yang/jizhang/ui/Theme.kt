@@ -64,8 +64,9 @@ enum class JzStyle(
     internal val blurRadius: Int = 0,
     internal val indicator: TabIndicator = TabIndicator.PILL,
 ) {
-    VOYAGER("Voyager", "蓝紫唱片、金色星辰和收支档案", shapeSet(2, 4, 6, 8, 12),
-        titleSize = 30, navRadius = 0, navHeight = 60, indicator = TabIndicator.VOYAGER),
+    VOYAGER("Voyager", "蓝紫星空、暖金细节和悬浮导航", shapeSet(6, 12, 18, 24, 32),
+        titleSize = 34, titleWeight = FontWeight.Bold, navRadius = 26, navHeight = 62, navInset = 14,
+        blurRadius = 18, indicator = TabIndicator.VOYAGER),
     GLASS("玻璃", "大圆角卡片和磨砂底栏", shapeSet(8, 12, 16, 22, 28), blurRadius = 22),
     COMPACT("紧凑", "小圆角卡片和实底底栏", shapeSet(6, 8, 12, 14, 18)),
     IOS("苹果 iOS", "大标题、分组卡片和悬浮磨砂底栏", shapeSet(9, 12, 16, 20, 28),
@@ -192,8 +193,8 @@ private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: L
     val border = Color(border)
 }
 
-private val voyagerLight = Surfaces(0xFFEFEDF6, 0xFFF8F6FC, 0xFFE6E2F0, 0xFF211F35, 0xFF514B66, 0xFF998FAE)
-private val voyagerDark = Surfaces(0xFF17182A, 0xFF212238, 0xFF2C2C46, 0xFFF4EFF9, 0xFFC8BFD7, 0xFF5F5777)
+private val voyagerLight = Surfaces(0xFFE2DFF1, 0xFFF4F0FC, 0xFFDED7F0, 0xFF211B37, 0xFF504465, 0xFF86769F)
+private val voyagerDark = Surfaces(0xFF101026, 0xFF211C3B, 0xFF2D2650, 0xFFF7EEFC, 0xFFCFC1DF, 0xFF635584)
 private val neutralLight = Surfaces(0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF404040, 0xFF666666, 0xFFE6E6E6)
 private val neutralDark = Surfaces(0xFF171717, 0xFF262626, 0xFF303030, 0xFFE5E5E5, 0xFFA1A1A1, 0xFF2E2E2E)
 private val iosLight = Surfaces(0xFFF2F2F7, 0xFFFFFFFF, 0xFFE8E8ED, 0xFF17171B, 0xFF606068, 0xFFDADAE0)

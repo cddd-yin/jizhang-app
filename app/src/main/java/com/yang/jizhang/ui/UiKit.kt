@@ -1,6 +1,8 @@
 package com.yang.jizhang.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -521,6 +523,7 @@ internal fun ExpenseTrend(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     annual: Boolean = false,
+    asLine: Boolean = false,
 ) {
     val active = periods.getOrNull(selectedIndex) ?: return
     val scheme = MaterialTheme.colorScheme
@@ -537,6 +540,42 @@ internal fun ExpenseTrend(
             color = scheme.onSurface,
         )
         Spacer(Modifier.height(10.dp))
+        if (asLine) {
+            val line = scheme.primary
+            val grid = scheme.outlineVariant
+            val latestSelect by androidx.compose.runtime.rememberUpdatedState(onSelect)
+            val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current ==
+                androidx.compose.ui.unit.LayoutDirection.Rtl
+            Canvas(Modifier.fillMaxWidth().height(112.dp).pointerInput(periods.size, rtl) {
+                detectTapGestures { position ->
+                    if (size.width > 0) {
+                        val index = (position.x / size.width * periods.size).toInt().coerceIn(periods.indices)
+                        latestSelect(if (rtl) periods.lastIndex - index else index)
+                    }
+                }
+            }) {
+                val inset = 9.dp.toPx()
+                val step = size.width / periods.size
+                val chartHeight = (size.height - 2 * inset).coerceAtLeast(0f)
+                repeat(3) { row ->
+                    val y = inset + chartHeight * row / 2f
+                    drawLine(grid, Offset(0f, y),
+                        Offset(size.width, y), 1.dp.toPx())
+                }
+                val points = periods.mapIndexed { index, (_, cents) ->
+                    Offset(
+                        step * ((if (rtl) periods.lastIndex - index else index) + 0.5f),
+                        inset + chartHeight * (1f - (cents.toDouble() / max).toFloat().coerceIn(0f, 1f)),
+                    )
+                }
+                points.zipWithNext().forEach { (left, right) ->
+                    drawLine(line, left, right, 2.dp.toPx())
+                }
+                points.forEachIndexed { index, point ->
+                    drawCircle(line, (if (index == selectedIndex) 5.dp else 3.dp).toPx(), point)
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             periods.forEachIndexed { index, (label, cents) ->
                 val selected = index == selectedIndex
@@ -553,7 +592,7 @@ internal fun ExpenseTrend(
                         fontSize = 11.sp,
                         maxLines = 1,
                     )
-                    Box(Modifier.fillMaxWidth().height(92.dp), contentAlignment = Alignment.BottomCenter) {
+                    if (!asLine) Box(Modifier.fillMaxWidth().height(92.dp), contentAlignment = Alignment.BottomCenter) {
                         val fraction = (cents.toDouble() / max).toFloat().coerceIn(0f, 1f)
                         Box(
                             Modifier.fillMaxWidth(0.56f)
@@ -575,27 +614,28 @@ internal fun ExpenseTrend(
 fun PieChart(
     data: List<ChartEntry>,
     modifier: Modifier = Modifier,
+    filled: Boolean = false,
 ) {
     Canvas(modifier) {
         val total = data.sumOf { it.value }
         if (total <= 0.0) return@Canvas
         val stroke = Stroke(width = size.minDimension * 0.22f, cap = StrokeCap.Butt)
-        val inset = stroke.width / 2 + 2f
+        val inset = if (filled) 2f else stroke.width / 2 + 2f
         val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
         var start = -90f
         // 留 2° 缝隙让分片可辨
-        val gapSweep = if (data.size > 1) 3f else 0f
+        val gapSweep = if (!filled && data.size > 1) 3f else 0f
         data.forEach { e ->
             val sweep = (e.value / total * 360f).toFloat()
             if (sweep > gapSweep) {
                 drawArc(
                     color = e.color,
                     startAngle = start + gapSweep / 2,
-                    sweepAngle = (sweep - gapSweep).coerceAtLeast(0.5f),
-                    useCenter = false,
+                    sweepAngle = if (filled) sweep else (sweep - gapSweep).coerceAtLeast(0.5f),
+                    useCenter = filled,
                     topLeft = Offset(inset, inset),
                     size = arcSize,
-                    style = stroke,
+                    style = if (filled) androidx.compose.ui.graphics.drawscope.Fill else stroke,
                 )
             }
             start += sweep

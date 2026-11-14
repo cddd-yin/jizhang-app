@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
@@ -279,7 +278,7 @@ fun AppRoot() {
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = when (themeStyle) {
                     JzStyle.GLASS, JzStyle.COMPACT, JzStyle.IOS -> CircleShape
-                    JzStyle.VOYAGER -> CutCornerShape(topEnd = 14.dp, bottomStart = 9.dp)
+                    JzStyle.VOYAGER -> MaterialTheme.shapes.extraLarge
                     else -> MaterialTheme.shapes.large
                 },
             ) {
@@ -642,7 +641,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolea
             Modifier
                 .size(width = 52.dp, height = 28.dp)
                 .then(
-                    if (selected && style.indicator == TabIndicator.PILL) Modifier.background(
+                    if (selected && (style.indicator == TabIndicator.PILL || style.indicator == TabIndicator.VOYAGER)) Modifier.background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         CircleShape,
                     ) else Modifier

@@ -1,5 +1,6 @@
 package com.yang.jizhang.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,7 +45,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
@@ -284,10 +284,9 @@ fun HomeTab(
             item(key = "recent_empty") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = if (voyager) RectangleShape else MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().then(
-                        if (voyager) Modifier else Modifier.padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
-                    ),
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        .shadow(if (voyager) 0.dp else 3.dp, MaterialTheme.shapes.large),
                 ) {
                     EmptyState("还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
                 }
@@ -296,10 +295,9 @@ fun HomeTab(
             item(key = "recent_card") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = if (voyager) RectangleShape else MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().then(
-                        if (voyager) Modifier else Modifier.padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
-                    ),
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        .shadow(if (voyager) 0.dp else 3.dp, MaterialTheme.shapes.large),
                 ) {
                     Column {
                         recent.forEachIndexed { i, tx ->
@@ -352,49 +350,43 @@ internal val VoyagerIvory = Color(0xFFF6F0FC)
 
 @Composable
 private fun VoyagerHomeHeader(period: String, income: Long, expense: Long) {
-    Column(Modifier.fillMaxWidth()) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clipToBounds()
-                .background(Brush.horizontalGradient(listOf(VoyagerNight, Color(0xFF303051)))),
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp)) {
+        Column(Modifier.padding(horizontal = 7.dp, vertical = 7.dp)) {
+            PageTitle("Voyager", Modifier.semantics { heading() })
+            Text(period, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(11.dp))
+        Surface(
+            color = VoyagerNight,
+            contentColor = VoyagerIvory,
+            shape = MaterialTheme.shapes.extraLarge,
+            border = BorderStroke(1.dp, Color(0xFF6D5C97)),
         ) {
-            VoyagerRecord(Modifier.matchParentSize())
-            Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 28.dp)) {
-                Text(
-                    "Voyager",
-                    modifier = Modifier.semantics { heading() },
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 34.sp,
-                    color = VoyagerIvory,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(period, color = VoyagerGold, fontSize = 13.sp)
-                Spacer(Modifier.height(30.dp))
-                Text("本月结余", color = VoyagerGold, fontSize = 13.sp)
-                val balance = income - expense
-                Text(
-                    if (balance < 0) "-${fmtCents(balance)}" else fmtCents(balance),
-                    fontSize = 42.sp,
-                    color = VoyagerIvory,
-                    fontFamily = FontFamily.Serif,
-                )
+            Box(
+                Modifier.fillMaxWidth().clipToBounds()
+                    .background(Brush.linearGradient(listOf(Color(0xFF241C45), Color(0xFF3D2C67), Color(0xFF17182F)))),
+            ) {
+                VoyagerRecord(Modifier.matchParentSize())
+                Column(Modifier.fillMaxWidth().padding(horizontal = 23.dp, vertical = 21.dp)) {
+                    Text("本月结余", fontSize = 13.sp, color = VoyagerGold)
+                    Spacer(Modifier.height(8.dp))
+                    val balance = income - expense
+                    Text(
+                        if (balance < 0) "-${fmtCents(balance)}" else fmtCents(balance),
+                        fontSize = 44.sp, color = VoyagerIvory, fontFamily = FontFamily.Serif,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    HorizontalDivider(color = VoyagerGold.copy(alpha = 0.34f))
+                    VoyagerCashFlow(income, expense)
+                }
             }
         }
-        val scheme = MaterialTheme.colorScheme
-        Surface(color = scheme.surfaceVariant, contentColor = scheme.onSurface) {
-            Column {
-                VoyagerCashFlow(income, expense)
-                HorizontalDivider(color = scheme.outlineVariant)
-            }
-        }
-        Spacer(Modifier.height(12.dp))
     }
 }
 
 @Composable
 private fun VoyagerCashFlow(income: Long, expense: Long) {
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 13.dp)) {
         val scale = LocalDensity.current.fontScale
         if (maxWidth < (244 * scale).dp) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -413,20 +405,20 @@ private fun VoyagerCashFlow(income: Long, expense: Long) {
 @Composable
 private fun VoyagerTotal(label: String, cents: Long, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, fontSize = 12.sp, color = VoyagerGold)
         Spacer(Modifier.height(3.dp))
-        Text(fmtCents(cents), fontFamily = FontFamily.Serif, fontSize = 20.sp)
+        Text(fmtCents(cents), fontFamily = FontFamily.Serif, fontSize = 20.sp, color = VoyagerIvory)
     }
 }
 
 @Composable
 internal fun VoyagerRecord(modifier: Modifier) {
     Canvas(modifier) {
-        val spindle = Offset(size.width * 0.91f, size.height * 0.34f)
+        val spindle = Offset(size.width * 0.94f, size.height * 0.21f)
         val radius = minOf(size.height * 0.72f, size.width * 0.38f).coerceAtLeast(1f)
-        drawCircle(Color(0xFF1A192F), radius, spindle)
+        drawCircle(Color(0xFF292046).copy(alpha = 0.76f), radius, spindle)
         drawCircle(
-            Brush.radialGradient(listOf(Color(0xFF454065), Color(0xFF25233D)), spindle, radius),
+            Brush.radialGradient(listOf(Color(0xFF5A487C).copy(alpha = 0.8f), Color(0xFF372858).copy(alpha = 0.32f)), spindle, radius),
             radius, spindle,
         )
         for (groove in 0..7) {

@@ -587,9 +587,9 @@ private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Mo
 @Composable
 private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.ColorScheme) {
     if (style == JzStyle.VOYAGER) {
-        Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)) {
+        Column(Modifier.fillMaxWidth().clip(style.shapes.medium).background(scheme.background).padding(4.dp)) {
             Box(
-                Modifier.fillMaxWidth().height(40.dp).clipToBounds().background(Color(0xFF262641)),
+                Modifier.fillMaxWidth().height(38.dp).clip(style.shapes.medium).clipToBounds().background(Color(0xFF423267)),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 VoyagerRecord(Modifier.matchParentSize())
@@ -599,7 +599,8 @@ private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.Co
                 }
             }
             Box(Modifier.fillMaxWidth().height(8.dp).background(scheme.surfaceVariant))
-            Box(Modifier.fillMaxWidth().height(7.dp).background(scheme.surface))
+            Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp).height(7.dp)
+                .clip(CircleShape).background(scheme.surface))
         }
         return
     }

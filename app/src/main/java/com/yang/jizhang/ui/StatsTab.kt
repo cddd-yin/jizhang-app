@@ -1,6 +1,5 @@
 package com.yang.jizhang.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,11 +16,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +60,14 @@ fun StatsTab(
     val chartPalette = chartColors()
     val isYear = mode == "year"
     val archive = LocalJzStyle.current == JzStyle.VOYAGER
+    val context = LocalContext.current
+    val chartPreferences = remember(context) { context.getSharedPreferences("stats_charts", 0) }
+    var lineTrend by remember(chartPreferences, archive) {
+        mutableStateOf(chartPreferences.getBoolean("line_trend", archive))
+    }
+    var expensePie by remember(chartPreferences, archive) {
+        mutableStateOf(chartPreferences.getBoolean("expense_pie", archive))
+    }
     var selectedPeriod by rememberSaveable(isYear, year, month) { mutableIntStateOf(5) }
 
     // ── 月模式数据 ──
@@ -168,10 +174,6 @@ fun StatsTab(
         item(key = "header") {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                 PageTitle(if (archive) "收支档案" else "统计")
-                if (archive) {
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MonthSwitcher(
@@ -223,19 +225,26 @@ fun StatsTab(
 
         // ── 支出趋势柱状 ──
         item(key = "bar_label") {
-            SectionLabel(if (isYear) "近 6 年支出" else "近 6 个月支出", Modifier.padding(top = 8.dp))
+            ChartDisplayControl(
+                title = if (isYear) "近 6 年支出" else "近 6 个月支出",
+                first = "柱状", second = "折线", secondSelected = lineTrend,
+                onSelect = {
+                    lineTrend = it
+                    chartPreferences.edit().putBoolean("line_trend", it).apply()
+                },
+            )
         }
         item(key = "bar_card") {
             val bars = if (isYear) expenseByYear else expenseByMonth
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.large,
-                border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 ExpenseTrend(
                     periods = bars,
                     annual = isYear,
+                    asLine = lineTrend,
                     selectedIndex = selectedPeriod,
                     onSelect = { selectedPeriod = it },
                     modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -250,7 +259,7 @@ fun StatsTab(
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
-                    border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Column(Modifier.padding(14.dp)) {
@@ -432,7 +441,14 @@ fun StatsTab(
 
         // ── 支出分类 ──
         item(key = "cat_label") {
-            SectionLabel(if (isYear) "支出分类（本年）" else "支出分类（本月）")
+            ChartDisplayControl(
+                title = if (isYear) "支出分类（本年）" else "支出分类（本月）",
+                first = "排名", second = "扇形", secondSelected = expensePie,
+                onSelect = {
+                    expensePie = it
+                    chartPreferences.edit().putBoolean("expense_pie", it).apply()
+                },
+            )
         }
         val byCategory = if (isYear) byCategoryYear else byCategoryMonth
         val catTotal = if (isYear) yearExpenseTotal else expenseTotal
@@ -460,12 +476,27 @@ fun StatsTab(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Column(Modifier.padding(vertical = 6.dp)) {
+                        if (expensePie) {
+                            val slices = byCategory.mapIndexed { index, (label, amount, _) ->
+                                ChartEntry(label, amount.toDouble(), chartPalette[index % chartPalette.size])
+                            }
+                            PieChart(
+                                data = slices,
+                                modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 16.dp).size(166.dp),
+                                filled = true,
+                            )
+                        }
                         byCategory.forEachIndexed { index, (cat, cents, count) ->
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                CategoryCircle(cat, size = 36.dp)
+                                if (expensePie) {
+                                    Box(Modifier.size(12.dp).clip(RoundedCornerShape(4.dp))
+                                        .background(chartPalette[index % chartPalette.size]))
+                                } else {
+                                    CategoryCircle(cat, size = 36.dp)
+                                }
                                 Spacer(Modifier.width(11.dp))
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -478,23 +509,32 @@ fun StatsTab(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    Spacer(Modifier.height(6.dp))
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(5.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    ) {
+                                    if (expensePie) {
+                                        val share = if (catTotal > 0) cents.toDouble() / catTotal else 0.0
+                                        Text(
+                                            "%.1f%%".format(share * 100),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    } else {
+                                        Spacer(Modifier.height(6.dp))
                                         Box(
                                             Modifier
-                                                .fillMaxWidth(
-                                                    if (catTotal > 0) (cents.toFloat() / catTotal).coerceIn(0.02f, 1f) else 0f,
-                                                )
+                                                .fillMaxWidth()
                                                 .height(5.dp)
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(categoryHue(cat)),
-                                        )
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        ) {
+                                            Box(
+                                                Modifier
+                                                    .fillMaxWidth(
+                                                        if (catTotal > 0) (cents.toFloat() / catTotal).coerceIn(0.02f, 1f) else 0f,
+                                                    )
+                                                    .height(5.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(categoryHue(cat)),
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -526,26 +566,44 @@ private fun aggregateTop(
         list.drop(5).sumOf { it.third },
     )
 
+@Composable
+private fun ChartDisplayControl(
+    title: String,
+    first: String,
+    second: String,
+    secondSelected: Boolean,
+    onSelect: (Boolean) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(5.dp))
+        ChartChoice(first, second, secondSelected, onSelect)
+    }
+}
+
 /** 月 / 年模式切换（胶囊分段） */
 @Composable
-private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) {
-    val archive = LocalJzStyle.current == JzStyle.VOYAGER
-    val shape = if (archive) CutCornerShape(topEnd = 8.dp) else RoundedCornerShape(50)
+private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) =
+    ChartChoice("月", "年", yearSelected, onSelect)
+
+@Composable
+private fun ChartChoice(first: String, second: String, secondSelected: Boolean, onSelect: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(50)
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = shape,
-        border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+
     ) {
         Row(Modifier.padding(4.dp).selectableGroup()) {
-            listOf(false to "月", true to "年").forEach { (isYear, label) ->
+            listOf(false to first, true to second).forEach { (isYear, label) ->
                 Box(
                     Modifier
                         .clip(shape)
                         .background(
-                            if (yearSelected == isYear) MaterialTheme.colorScheme.primary
+                            if (secondSelected == isYear) MaterialTheme.colorScheme.primary
                             else androidx.compose.ui.graphics.Color.Transparent
                         )
-                        .selectable(selected = yearSelected == isYear, role = Role.RadioButton) { onSelect(isYear) }
+                        .selectable(selected = secondSelected == isYear, role = Role.RadioButton) { onSelect(isYear) }
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -553,7 +611,7 @@ private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) {
                         label,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (yearSelected == isYear) MaterialTheme.colorScheme.onPrimary
+                        color = if (secondSelected == isYear) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
