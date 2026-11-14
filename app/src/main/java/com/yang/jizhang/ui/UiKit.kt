@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -233,6 +234,7 @@ fun TxRow(
             )
             androidx.compose.material3.SwipeToDismissBox(
                 state = dismissState,
+                modifier = Modifier.clipToBounds(),
                 enableDismissFromStartToEnd = false,
                 backgroundContent = {
                     Row(
@@ -250,6 +252,7 @@ fun TxRow(
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
                         .clickable(onClick = onClick)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,

@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">日常账本</string>
-    <string name="listener_label">日常账本 · 支付通知监听</string>
+    <string name="app_name">天蓝账本</string>
+    <string name="listener_label">天蓝账本 · 支付通知监听</string>
     <string name="widget_desc">本月支出 / 收入 / 结余一览，一键记账</string>
     <string name="tile_record">记一笔</string>
 </resources>

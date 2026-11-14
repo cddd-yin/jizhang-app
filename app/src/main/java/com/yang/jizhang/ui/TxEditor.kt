@@ -2,6 +2,7 @@ package com.yang.jizhang.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -265,15 +266,19 @@ fun TxEditor(
                             color = if (isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            amountText.ifEmpty { "0.00" },
-                            fontSize = 38.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = (-0.5).sp,
-                            color = if (isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                        )
+                        Box(
+                            Modifier.weight(1f).horizontalScroll(rememberScrollState(), reverseScrolling = true),
+                        ) {
+                            Text(
+                                amountText.ifEmpty { "0.00" },
+                                fontSize = 38.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = (-0.5).sp,
+                                color = if (isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
                         if (amountText.isNotEmpty()) {
                             Text(
                                 "清空",
