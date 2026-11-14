@@ -32,7 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -200,25 +202,29 @@ fun StatsTab(
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             ) {
-                Column(Modifier.padding(18.dp)) {
-                    val balance = viewIncome - viewExpense
-                    Text(
-                        if (isYear) "年度结余" else "结余",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    AnimatedAmountText(
-                        cents = balance,
-                        fontSize = 30.sp,
-                        color = if (balance >= 0) incomeColor() else expenseColor(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "支出 ${fmtCents(viewExpense)} · 收入 ${fmtCents(viewIncome)} · 共 ${viewTxs.size} 笔",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Box {
+                    if (archive) VoyagerStarMotif(Modifier.matchParentSize().alpha(0.36f))
+                    Column(Modifier.padding(18.dp)) {
+                        val balance = viewIncome - viewExpense
+                        Text(
+                            if (isYear) "年度结余" else "结余",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        AnimatedAmountText(
+                            cents = balance,
+                            fontSize = 30.sp,
+                            fontFamily = if (archive) FontFamily.Serif else null,
+                            color = if (balance >= 0) incomeColor() else expenseColor(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "支出 ${fmtCents(viewExpense)} · 收入 ${fmtCents(viewIncome)} · 共 ${viewTxs.size} 笔",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
