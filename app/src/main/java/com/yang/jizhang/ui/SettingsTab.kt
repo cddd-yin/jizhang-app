@@ -592,7 +592,7 @@ private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.Co
                 Modifier.fillMaxWidth().height(38.dp).clip(style.shapes.medium).clipToBounds().background(Color(0xFF423267)),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                VoyagerRecord(Modifier.matchParentSize())
+                VoyagerStarMotif(Modifier.matchParentSize())
                 Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(Modifier.fillMaxWidth(0.31f).height(3.dp).background(VoyagerGold))
                     Box(Modifier.fillMaxWidth(0.45f).height(5.dp).background(VoyagerIvory))

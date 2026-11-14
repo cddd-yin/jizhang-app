@@ -366,7 +366,7 @@ private fun VoyagerHomeHeader(period: String, income: Long, expense: Long) {
                 Modifier.fillMaxWidth().clipToBounds()
                     .background(Brush.linearGradient(listOf(Color(0xFF241C45), Color(0xFF3D2C67), Color(0xFF17182F)))),
             ) {
-                VoyagerRecord(Modifier.matchParentSize())
+                VoyagerStarMotif(Modifier.matchParentSize())
                 Column(Modifier.fillMaxWidth().padding(horizontal = 23.dp, vertical = 21.dp)) {
                     Text("本月结余", fontSize = 13.sp, color = VoyagerGold)
                     Spacer(Modifier.height(8.dp))
@@ -412,34 +412,46 @@ private fun VoyagerTotal(label: String, cents: Long, modifier: Modifier = Modifi
 }
 
 @Composable
-internal fun VoyagerRecord(modifier: Modifier) {
+internal fun VoyagerStarMotif(modifier: Modifier) {
     Canvas(modifier) {
-        val spindle = Offset(size.width * 0.94f, size.height * 0.21f)
-        val radius = minOf(size.height * 0.72f, size.width * 0.38f).coerceAtLeast(1f)
-        drawCircle(Color(0xFF292046).copy(alpha = 0.76f), radius, spindle)
+        val center = Offset(size.width * 0.86f, size.height * 0.25f)
+        val radius = minOf(size.width * 0.29f, size.height * 0.49f).coerceAtLeast(1f)
         drawCircle(
-            Brush.radialGradient(listOf(Color(0xFF5A487C).copy(alpha = 0.8f), Color(0xFF372858).copy(alpha = 0.32f)), spindle, radius),
-            radius, spindle,
+            brush = Brush.radialGradient(
+                listOf(Color(0xFF7462BD).copy(alpha = 0.36f), Color.Transparent),
+                center, radius,
+            ),
+            radius = radius,
+            center = center,
         )
-        for (groove in 0..7) {
-            drawCircle(
-                Color(0xFFB2A3D4).copy(alpha = if (groove % 3 == 0) 0.25f else 0.12f),
-                radius * (0.98f - groove * 0.093f), spindle, style = Stroke(0.7.dp.toPx()),
+
+        val orbit = Path().apply {
+            moveTo(center.x - radius * 1.24f, center.y + radius * 0.57f)
+            cubicTo(
+                center.x - radius * 1.12f, center.y - radius * 0.09f,
+                center.x + radius * 0.36f, center.y + radius * 0.61f,
+                center.x + radius * 0.83f, center.y - radius * 0.53f,
             )
         }
-        drawCircle(VoyagerGold.copy(alpha = 0.6f), radius * 0.21f, spindle, style = Stroke(0.8.dp.toPx()))
-        val tip = radius * 0.15f
-        val inset = tip * 0.18f
-        val (x, y) = spindle
+        drawPath(orbit, Color(0xFFAA94E7).copy(alpha = 0.46f), style = Stroke(0.8.dp.toPx()))
+
+        val tip = radius * 0.34f
         val star = Path().apply {
-            moveTo(x, y - tip)
-            quadraticTo(x + inset, y - inset, x + tip, y)
-            quadraticTo(x + inset, y + inset, x, y + tip)
-            quadraticTo(x - inset, y + inset, x - tip, y)
-            quadraticTo(x - inset, y - inset, x, y - tip)
+            repeat(16) { index ->
+                val angle = (-90 + index * 22.5) * Math.PI / 180
+                val length = when {
+                    index % 4 == 0 -> tip
+                    index % 2 == 0 -> tip * 0.62f
+                    else -> tip * 0.23f
+                }
+                val x = center.x + kotlin.math.cos(angle).toFloat() * length
+                val y = center.y + kotlin.math.sin(angle).toFloat() * length
+                if (index == 0) moveTo(x, y) else lineTo(x, y)
+            }
             close()
         }
         drawPath(star, VoyagerGold)
+        drawCircle(VoyagerIvory, tip * 0.15f, center)
     }
 }
 
