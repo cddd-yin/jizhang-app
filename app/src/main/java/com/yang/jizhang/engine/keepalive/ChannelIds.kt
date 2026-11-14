@@ -22,7 +22,9 @@ object ChannelIds {
     const val BUDGET = "budget_alert"
 
     private const val ID_AUTO_BASE = 2001
-    private const val ID_REVIEW_BASE = 3001
+    private const val ID_REVIEW = 3001
+    const val ACTION_REVIEW_BILL = "com.yang.jizhang.action.REVIEW_BILL"
+    const val EXTRA_PENDING_ID = "pending_bill_id"
     const val ID_GUARDIAN_FG = 1002
     const val ID_WATCH_DOWN = 1003
     private const val ID_BUDGET_BASE = 4001
@@ -96,11 +98,24 @@ object ChannelIds {
             .setContentTitle("待确认账单 ¥%.2f".format(cents / 100.0))
             .setContentText("$channel · ${reason ?: "识别不确定"}，点击确认")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$channel 通知已捕获，但金额或方向不确定，点开 App 确认后入账"))
-            .setContentIntent(openApp(ctx, (pendingId % 60000).toInt() + 1))
+            .setContentIntent(PendingIntent.getActivity(
+                ctx, 0,
+                Intent(ctx, MainActivity::class.java).apply {
+                    action = ACTION_REVIEW_BILL
+                    data = android.net.Uri.parse("jizhang://pending/$pendingId")
+                    putExtra(EXTRA_PENDING_ID, pendingId)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            ))
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION).setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-        notify(ctx, ID_REVIEW_BASE + (pendingId % 100000).toInt(), n)
+        ctx.getSystemService(NotificationManager::class.java)?.notify("pending:$pendingId", ID_REVIEW, n)
+    }
+
+    fun cancelReview(ctx: Context, pendingId: Long) {
+        ctx.getSystemService(NotificationManager::class.java)?.cancel("pending:$pendingId", ID_REVIEW)
     }
 
     /** 保活前台常驻 */

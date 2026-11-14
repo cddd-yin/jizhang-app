@@ -50,7 +50,9 @@ class PaymentWatchService : NotificationListenerService() {
         val postTime = sbn.postTime
         scope.launch {
             try {
-                AutoBookEngine.ingest(applicationContext, pkg, title, merged.removePrefix(title).trim().ifBlank { text }, postTime)
+                AutoBookEngine.ingest(
+                    applicationContext, pkg, title, merged.removePrefix(title).trim().ifBlank { text }, postTime, sbn.key,
+                )
             } catch (e: Exception) {
                 Log.w(TAG, "ingest failed", e)
             }

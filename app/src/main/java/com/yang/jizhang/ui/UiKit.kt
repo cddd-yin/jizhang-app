@@ -355,12 +355,15 @@ fun AnimatedAmountText(
             }
         }
     }
-    val animated = remember { Animatable(cents, centsConverter) }
-    androidx.compose.runtime.LaunchedEffect(cents) {
-        animated.animateTo(cents, tween(800, easing = FastOutSlowInEasing))
+    val shown = if (LocalPowerSaving.current) cents else {
+        val animated = remember { Animatable(cents, centsConverter) }
+        androidx.compose.runtime.LaunchedEffect(cents) {
+            animated.animateTo(cents, tween(800, easing = FastOutSlowInEasing))
+        }
+        animated.value
     }
     Text(
-        fmtCents(animated.value),
+        fmtCents(shown),
         fontSize = fontSize,
         fontWeight = fontWeight,
         letterSpacing = letterSpacing,
@@ -503,10 +506,13 @@ fun BarChart(
     val measurer = rememberTextMeasurer()
     // 标签布局结果缓存（v3.9.0：避免动画每帧重复 measure）
     val labels = remember(data) { data.map { measurer.measure(it.label, TextStyle(fontSize = 11.sp, color = sub)) } }
-    val grow = remember { androidx.compose.animation.core.Animatable(0f) }
-    androidx.compose.runtime.LaunchedEffect(data) {
-        grow.snapTo(0f)
-        grow.animateTo(1f, androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    val grow = if (LocalPowerSaving.current) null else {
+        val animation = remember { Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(data) {
+            animation.snapTo(0f)
+            animation.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+        }
+        animation
     }
     Canvas(modifier) {
         if (data.isEmpty()) return@Canvas
@@ -518,7 +524,7 @@ fun BarChart(
         // 基线
         drawLine(axis, Offset(0f, chartH), Offset(size.width, chartH), 1.5f)
         data.forEachIndexed { i, e ->
-            val hRatio = (e.value / maxV).toFloat() * grow.value
+            val hRatio = (e.value / maxV).toFloat() * (grow?.value ?: 1f)
             val barH = (chartH - 26f) * hRatio
             val x = gap + i * (barW + gap)
             drawRoundRect(
@@ -577,12 +583,13 @@ fun BudgetGauge(
     trackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     progressColor: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val animated = remember { androidx.compose.animation.core.Animatable(0f) }
-    androidx.compose.runtime.LaunchedEffect(usedFraction) {
-        animated.animateTo(
-            usedFraction.coerceIn(0f, 1f),
-            androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        )
+    val target = usedFraction.coerceIn(0f, 1f)
+    val animated = if (LocalPowerSaving.current) null else {
+        val animation = remember { Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(target) {
+            animation.animateTo(target, tween(900, easing = FastOutSlowInEasing))
+        }
+        animation
     }
     Canvas(modifier) {
         val strokeW = size.minDimension * 0.14f
@@ -599,7 +606,7 @@ fun BudgetGauge(
             size = arcSize,
             style = Stroke(strokeW, cap = cap),
         )
-        val frac = animated.value
+        val frac = animated?.value ?: target
         if (frac > 0.005f) {
             drawArc(
                 color = progressColor,

@@ -10,10 +10,13 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.togetherWith
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +57,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,10 +69,13 @@ import com.yang.jizhang.CategoryRules
 import com.yang.jizhang.JizhangApp
 import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
-import com.yang.jizhang.engine.UncertainBillQueue
+import com.yang.jizhang.data.PendingBill
+import com.yang.jizhang.engine.AutoBookEngine
+import com.yang.jizhang.engine.keepalive.ChannelIds
 import com.yang.jizhang.engine.keepalive.GuardianService
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.engine.BillExporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -80,13 +88,35 @@ import java.util.Calendar
 fun AppRoot() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dao = remember { (context.applicationContext as JizhangApp).db.txDao() }
+    val db = remember { (context.applicationContext as JizhangApp).db }
+    val dao = db.txDao()
+    val pendingDao = db.pendingBillDao()
+    val pendingFlow = remember(pendingDao) { pendingDao.watchAll() }
+    val pending by pendingFlow.collectAsStateWithLifecycle(initialValue = null)
+    var reviewOpen by rememberSaveable { mutableStateOf(false) }
+    var reviewId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var reviewBusy by remember { mutableStateOf(false) }
+    var reviewFeedback by remember { mutableStateOf<String?>(null) }
+    var reviewError by remember { mutableStateOf<String?>(null) }
+    val openReview = {
+        reviewFeedback = null
+        reviewError = null
+        reviewId = null
+        reviewOpen = true
+    }
 
     // ── 主题（v3.7.0：5 套预设 × 3 档深浅，设置页即点即生效并落盘） ──
     var themePreset by remember { mutableStateOf(ThemePrefs.preset(context)) }
     var themeMode by remember { mutableStateOf(ThemePrefs.mode(context)) }
     var themeStyle by remember { mutableStateOf(ThemePrefs.style(context)) }
     var customSeed by remember { mutableStateOf(ThemePrefs.customSeed(context)) }
+
+    var displaySettings by remember { mutableStateOf(DisplayPrefs.read(context)) }
+    val powerSaving = displaySettings.powerSaving
+    val useBlur = !powerSaving && themeStyle.blurRadius > 0
+    LaunchedEffect(displaySettings) {
+        (context as? MainActivity)?.applyDisplaySettings(displaySettings)
+    }
 
     // ── 全局状态 ──
     val today = remember { Calendar.getInstance() }
@@ -116,7 +146,10 @@ fun AppRoot() {
         (context as? MainActivity)?.applyStatusBarStyle(darkTheme)
         onDispose { }
     }
-    JizhangTheme(darkTheme = darkTheme, preset = themePreset, style = themeStyle, customSeed = customSeed) {
+    JizhangTheme(
+        darkTheme = darkTheme, preset = themePreset, style = themeStyle,
+        customSeed = customSeed, powerSaving = powerSaving,
+    ) {
 
     // ── 交互基础（v3.3.0）──
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -176,6 +209,14 @@ fun AppRoot() {
                     adding = true
                     editorKey++ // 记账页已开时又收到分享 → 丢弃旧输入，换上新草稿
                 }
+                val reviewingBill = reviewId?.let { id -> pending?.any { it.id == id } != false } == true
+                if (!reviewBusy && !reviewingBill && !adding && editing == null && !showExport && !showBudgets && !showRecurring) {
+                    UiBus.pendingBillRequest?.let { id ->
+                        UiBus.pendingBillRequest = null
+                        openReview()
+                        reviewId = id
+                    }
+                }
                 delay(300)
             }
         }
@@ -209,17 +250,6 @@ fun AppRoot() {
         }
     }
 
-    // 待确认账单轮询（STARTED 感知）
-    var pending by remember { mutableStateOf<List<UncertainBillQueue.Pending>>(UncertainBillQueue.all()) }
-    LaunchedEffect(Unit) {
-        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (true) {
-                pending = UncertainBillQueue.all()
-                delay(1_000)
-            }
-        }
-    }
-
     // 液态玻璃（v5.0.0，iOS 27 Liquid Glass）：内容作模糊源，底栏作玻璃层
     val hazeState = remember { dev.chrisbanes.haze.HazeState() }
 
@@ -232,18 +262,25 @@ fun AppRoot() {
                 onClick = { adding = true },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = CircleShape,
+                shape = when (themeStyle) {
+                    JzStyle.GLASS, JzStyle.COMPACT, JzStyle.IOS -> CircleShape
+                    else -> MaterialTheme.shapes.large
+                },
             ) {
                 Icon(Icons.Rounded.Add, contentDescription = "记一笔", modifier = Modifier.size(26.dp))
             }
         },
         bottomBar = { JzBottomBar(tab, hazeState, themeStyle) { tab = it } },
     ) { pad ->
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
+        val source = if (useBlur) Modifier.hazeSource(hazeState) else Modifier
+        Box(Modifier.fillMaxSize().then(source)) {
         androidx.compose.animation.AnimatedContent(
             targetState = tab,
             transitionSpec = {
-                (
+                if (powerSaving) {
+                    androidx.compose.animation.EnterTransition.None.togetherWith(androidx.compose.animation.ExitTransition.None)
+                        .using(null)
+                } else (
                     androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
                         androidx.compose.animation.slideInVertically(
                             androidx.compose.animation.core.tween(220),
@@ -260,6 +297,8 @@ fun AppRoot() {
                     budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
                     contentPad = pad,
                     listenerState = listenerState.value,
+                    pendingCount = pending.orEmpty().size,
+                    onOpenReview = openReview,
                     onEdit = { editing = it },
                     onGoRecords = { tab = 1 },
                     onOpenBudgets = { showBudgets = true },
@@ -285,11 +324,18 @@ fun AppRoot() {
                 else -> SettingsTab(
                     contentPad = pad,
                     listenerState = listenerState.value,
+                    pendingCount = pending.orEmpty().size,
+                    onOpenReview = openReview,
                     onExport = { showExport = true },
                     onOpenRecurring = { showRecurring = true },
                     themePreset = themePreset,
                     themeMode = themeMode,
                     themeStyle = themeStyle,
+                    displaySettings = displaySettings,
+                    onDisplayChange = { settings ->
+                        displaySettings = settings
+                        DisplayPrefs.save(context, settings)
+                    },
                     customSeed = customSeed,
                     onThemeChange = { p, m ->
                         themePreset = p
@@ -300,6 +346,7 @@ fun AppRoot() {
                     onStyleChange = { s ->
                         themeStyle = s
                         ThemePrefs.saveStyle(context, s)
+                        if (themePreset == JzPreset.STYLE) com.yang.jizhang.widget.WidgetSync.refreshAsync(context)
                     },
                     onCustomSeed = { argb ->
                         customSeed = argb
@@ -309,21 +356,58 @@ fun AppRoot() {
                 )
             }
         }
-        } // Box(hazeSource)
+        }
     }
 
-    // 待确认账单弹窗（依次确认）
-    pending.firstOrNull()?.let { p ->
-        PendingConfirmDialog(
-            pending = p,
-            onClose = { UncertainBillQueue.remove(p.id) },
-            onConfirm = { amountCents, income ->
-                // v4.0.0：统一走引擎入库编排（分类学习 + 预算检查 + 小组件刷新）
-                com.yang.jizhang.engine.AutoBookEngine.confirm(context, p, amountCents, income)
-                UncertainBillQueue.remove(p.id)
-            },
-            onIgnore = { UncertainBillQueue.remove(p.id) },
-        )
+    if (reviewOpen && !adding && editing == null && !showExport && !showBudgets && !showRecurring) {
+        val bills = pending
+        val selected = bills?.firstOrNull { it.id == reviewId }
+        fun submitReview(bill: PendingBill, update: suspend () -> String) {
+            if (reviewBusy) return
+            reviewBusy = true
+            reviewError = null
+            scope.launch {
+                try {
+                    reviewFeedback = update()
+                    reviewId = null
+                    runCatching { ChannelIds.cancelReview(context, bill.id) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    reviewError = "操作未完成，请重试"
+                } finally {
+                    reviewBusy = false
+                }
+            }
+        }
+
+        if (selected != null) {
+            PendingConfirmDialog(
+                pending = selected,
+                busy = reviewBusy,
+                error = reviewError,
+                onClose = { reviewError = null; reviewId = null },
+                onConfirm = { amount, income ->
+                    submitReview(selected) {
+                        if (AutoBookEngine.confirm(context, selected.id, amount, income)) "已入账"
+                        else "这条账单已处理"
+                    }
+                },
+                onIgnore = {
+                    submitReview(selected) {
+                        if (pendingDao.markHandled(selected.id, System.currentTimeMillis()) > 0) "已忽略这条账单"
+                        else "这条账单已处理"
+                    }
+                },
+            )
+        } else if (bills != null) {
+            PendingBillsDialog(
+                bills = bills,
+                feedback = reviewFeedback ?: if (reviewId != null && !reviewBusy) "这条账单已处理" else null,
+                onSelect = { if (!reviewBusy) { reviewFeedback = null; reviewId = it } },
+                onClose = { if (!reviewBusy) { reviewOpen = false; reviewId = null } },
+            )
+        }
     }
 
     // 记一笔 / 编辑（全屏计算器，一个入口两用；editorKey 变化强制重建以应用新草稿）
@@ -459,54 +543,68 @@ private fun JzBottomBar(
             JzTabItem("设置", Icons.Outlined.Settings),
         )
     }
-    val glass = MaterialTheme.colorScheme.surface
+    val scheme = MaterialTheme.colorScheme
+    val floating = style.navInset > 0
+    val blur = !LocalPowerSaving.current && style.blurRadius > 0
+    val fontScale = LocalDensity.current.fontScale
+    val navHeight = style.navHeight.dp + (fontScale - 1f).coerceAtLeast(0f).times(22).dp
+    val shape = when {
+        floating -> RoundedCornerShape(style.navRadius.dp)
+        else -> RoundedCornerShape(topStart = style.navRadius.dp, topEnd = style.navRadius.dp)
+    }
+    val frame = if (floating) {
+        Modifier.navigationBarsPadding().padding(horizontal = style.navInset.dp, vertical = 8.dp)
+    } else Modifier
     Surface(
-        // Liquid Glass：玻璃档半透明+真模糊；紧凑档实底省电（v5.2）
-        color = if (style == JzStyle.GLASS) glass.copy(alpha = 0.72f) else glass,
-        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
-        modifier = if (style == JzStyle.GLASS) {
-            Modifier.hazeChild(
-                hazeState,
-                style = dev.chrisbanes.haze.HazeStyle(
-                    backgroundColor = glass,
-                    tints = emptyList<dev.chrisbanes.haze.HazeTint>(),
-                    blurRadius = 22.dp,
-                ),
-            )
-        } else Modifier,
+        color = if (blur) scheme.surface.copy(alpha = 0.78f) else scheme.surface,
+        shape = shape,
+        border = if (floating || style == JzStyle.PAPER || style == JzStyle.INK)
+            BorderStroke(1.dp, scheme.outlineVariant) else null,
+        shadowElevation = if (floating) 5.dp else 0.dp,
+        modifier = Modifier.fillMaxWidth().then(frame),
     ) {
+        val effect = if (blur) Modifier.hazeEffect(
+            hazeState,
+            style = dev.chrisbanes.haze.HazeStyle(
+                backgroundColor = scheme.surface,
+                tints = emptyList(),
+                blurRadius = style.blurRadius.dp,
+            ),
+        ) else Modifier
         Row(
             Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(64.dp),
+                .then(effect)
+                .then(if (floating) Modifier else Modifier.navigationBarsPadding())
+                .height(navHeight)
+                .selectableGroup(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { i, item ->
-                JzTabCell(item, selected == i) { onSelect(i) }
+                JzTabCell(item, style, selected == i) { onSelect(i) }
             }
         }
     }
 }
 
 @Composable
-private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolean, onClick: () -> Unit) {
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // 选中弹簧弹跳（v3.13.0）
-    val scale by androidx.compose.animation.core.animateFloatAsState(
+    val scale = if (LocalPowerSaving.current) 1f else androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (selected) 1.12f else 1f,
         animationSpec = androidx.compose.animation.core.spring(
             dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
             stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
         ),
         label = "tabScale",
-    )
+    ).value
     Column(
         Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable {
+            .selectable(selected = selected, role = Role.Tab) {
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 onClick()
             },
@@ -517,7 +615,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -
             Modifier
                 .size(width = 52.dp, height = 28.dp)
                 .then(
-                    if (selected) Modifier.background(
+                    if (selected && style.indicator == TabIndicator.PILL) Modifier.background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         CircleShape,
                     ) else Modifier
@@ -526,7 +624,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -
         ) {
             Icon(
                 item.icon,
-                contentDescription = item.label,
+                contentDescription = null,
                 tint = tint,
                 modifier = Modifier
                     .size(22.dp)
@@ -539,8 +637,12 @@ private fun RowScope.JzTabCell(item: JzTabItem, selected: Boolean, onClick: () -
         Text(
             item.label,
             fontSize = 11.sp,
-            color = tint,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else tint,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
+        if (style.indicator == TabIndicator.UNDERLINE) {
+            Box(Modifier.padding(top = 3.dp).size(24.dp, 2.dp)
+                .background(if (selected) tint else androidx.compose.ui.graphics.Color.Transparent))
+        }
     }
 }

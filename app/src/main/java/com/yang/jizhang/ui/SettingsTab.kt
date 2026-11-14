@@ -11,9 +11,11 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +29,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,6 +54,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -64,6 +70,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,23 +78,27 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.yang.jizhang.data.Source
 import com.yang.jizhang.engine.BillImporter
 import com.yang.jizhang.engine.keepalive.ListenerHealth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
  * 设置页：自动记账状态与四项权限引导（原权限引导页收编为常驻 Tab）+ 数据导入导出 + 关于。
  */
 @Composable
-fun SettingsTab(
+internal fun SettingsTab(
     contentPad: PaddingValues,
     listenerState: ListenerHealth.DisplayState,
+    pendingCount: Int,
+    onOpenReview: () -> Unit,
     onExport: () -> Unit,
     onOpenRecurring: () -> Unit,
     themePreset: JzPreset,
     themeMode: JzMode,
     themeStyle: JzStyle,
+    displaySettings: DisplaySettings,
+    onDisplayChange: (DisplaySettings) -> Unit,
     customSeed: Int?,
     onThemeChange: (JzPreset, JzMode) -> Unit,
     onStyleChange: (JzStyle) -> Unit,
@@ -120,15 +131,26 @@ fun SettingsTab(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    var importing by remember { mutableStateOf(false) }
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val n = runCatching { BillImporter.import(context, uri, Source.IMPORT) }.getOrDefault(0)
-            android.widget.Toast.makeText(
-                context,
-                if (n > 0) "导入成功，新增 $n 条" else "导入失败：请选择支付宝/微信导出的账单 CSV",
-                android.widget.Toast.LENGTH_LONG,
-            ).show()
-            if (n > 0) {
+        if (uri != null && !importing) scope.launch {
+            importing = true
+            val result = try {
+                BillImporter.import(context, uri)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                BillImporter.Result.Invalid("写入账本失败，请重试")
+            } finally {
+                importing = false
+            }
+            val message = when (result) {
+                is BillImporter.Result.Invalid -> result.message
+                is BillImporter.Result.Imported ->
+                    "新增 ${result.added} 条，重复 ${result.duplicates} 条，跳过 ${result.skipped} 条"
+            }
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            if (result is BillImporter.Result.Imported && result.added > 0) {
                 com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
                 com.yang.jizhang.widget.WidgetSync.refreshAsync(context)
             }
@@ -167,13 +189,7 @@ fun SettingsTab(
             // 底栏 + FAB 避让（v3.5.0 修复：此前末尾条目被底部导航遮挡）
             .padding(bottom = contentPad.calculateBottomPadding() + 96.dp),
     ) {
-        Text(
-            "设置",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.3).sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-        )
+        PageTitle("设置", Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
 
         // ── 自动记账状态 ──
         Surface(
@@ -248,7 +264,7 @@ fun SettingsTab(
             Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text("深浅模式", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().selectableGroup()) {
                     JzMode.entries.forEach { m ->
                         ModeCell(
                             label = m.label,
@@ -260,13 +276,19 @@ fun SettingsTab(
                 Spacer(Modifier.height(16.dp))
                 Text("界面风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    JzStyle.entries.forEach { s ->
-                        ModeCell(
-                            label = s.label,
-                            selected = themeStyle == s,
-                            modifier = Modifier.weight(1f),
-                        ) { onStyleChange(s) }
+                Column(
+                    modifier = Modifier.selectableGroup(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    JzStyle.entries.chunked(2).forEach { styles ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (style in styles) {
+                                StyleCard(style, themeStyle == style, Modifier.weight(1f)) {
+                                    onStyleChange(style)
+                                }
+                            }
+                            if (styles.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -277,23 +299,74 @@ fun SettingsTab(
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 Spacer(Modifier.height(16.dp))
-                Text("配色风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("强调色", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(10.dp))
-                // 2 行 × 3 列主题色卡（当前主色描边高亮，即点即生效）
-                JzPreset.entries.chunked(3).forEach { rowPresets ->
-                    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                        rowPresets.forEach { p ->
-                            PresetCard(
-                                preset = p,
-                                selected = themePreset == p,
-                                modifier = Modifier.weight(1f),
-                                seedColor = customSeed?.let { Color(it) },
-                            ) {
-                                if (p == JzPreset.CUSTOM) showColorPicker = true
-                                else onThemeChange(p, themeMode)
+                Column(Modifier.selectableGroup()) {
+                    JzPreset.entries.chunked(3).forEach { rowPresets ->
+                        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                            rowPresets.forEach { p ->
+                                PresetCard(
+                                    preset = p,
+                                    selected = themePreset == p,
+                                    modifier = Modifier.weight(1f),
+                                    seedColor = customSeed?.let { Color(it) },
+                                ) {
+                                    if (p == JzPreset.CUSTOM) showColorPicker = true
+                                    else onThemeChange(p, themeMode)
+                                }
                             }
+                            repeat(3 - rowPresets.size) { Spacer(Modifier.weight(1f)) }
                         }
-                        repeat(3 - rowPresets.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+
+        SettingsHeader("性能与省电")
+        SettingsCard {
+            Row(
+                Modifier.fillMaxWidth()
+                    .toggleable(
+                        value = displaySettings.powerSaving,
+                        role = Role.Switch,
+                        onValueChange = { onDisplayChange(displaySettings.copy(powerSaving = it)) },
+                    )
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("省电模式", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "优先请求 60 Hz 或更低，关闭磨砂和主要动画。后台自动记账照常运行。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = displaySettings.powerSaving, onCheckedChange = null)
+            }
+            CardDivider()
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("界面刷新率", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (displaySettings.powerSaving) "省电模式已启用，关闭后恢复所选档位。"
+                    else "实际刷新率由设备和系统决定。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RefreshRate.entries.chunked(3).forEach { rates ->
+                        Row(Modifier.fillMaxWidth()) {
+                            rates.forEach { rate ->
+                                ModeCell(
+                                    label = rate.label,
+                                    selected = displaySettings.refreshRate == rate,
+                                    modifier = Modifier.weight(1f),
+                                ) { onDisplayChange(displaySettings.copy(refreshRate = rate)) }
+                            }
+                            repeat(3 - rates.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
                 }
             }
@@ -310,11 +383,19 @@ fun SettingsTab(
         // ── 数据管理 ──
         SettingsHeader("数据管理")
         SettingsCard {
-            ActionItem(Icons.Outlined.Upload, "导入账单（CSV / Excel）", "支付宝/微信官方导出、银行/自建表格：.csv 与 .xlsx 均可，表头自动识别") {
-                importPicker.launch(arrayOf(
-                    "text/csv", "text/comma-separated-values", "text/plain",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "*/*"
-                ))
+            ActionItem(
+                Icons.Outlined.Notifications,
+                "待确认账单",
+                if (pendingCount > 0) "$pendingCount 条待处理" else "暂无待确认账单",
+                onOpenReview,
+            )
+            CardDivider()
+            ActionItem(
+                Icons.Outlined.Upload,
+                if (importing) "正在导入账单…" else "导入账单",
+                "支持 CSV、TSV、TXT、Excel (.xlsx / .xlsm) 和 ZIP",
+            ) {
+                if (!importing) importPicker.launch(arrayOf("*/*"))
             }
             CardDivider()
             ActionItem(Icons.Outlined.Download, "导出账单 CSV", "导出本月或全部账单，可分享、可再导入") {
@@ -431,12 +512,12 @@ private fun ModeCell(
     Box(
         modifier
             .padding(horizontal = 3.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(
                 if (selected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceVariant
             )
-            .clickable {
+            .selectable(selected = selected, role = Role.RadioButton) {
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 onClick()
             }
@@ -449,6 +530,71 @@ private fun ModeCell(
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val theme = MaterialTheme.colorScheme
+    val dark = LocalJzDark.current
+    val preview = styleColors(style, dark, style.defaultAccent(dark))
+    val frame = MaterialTheme.shapes.medium
+    Column(
+        modifier
+            .clip(frame)
+            .background(theme.surface)
+            .border(BorderStroke(if (selected) 2.dp else 1.dp,
+                if (selected) theme.primary else theme.outlineVariant), frame)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(8.dp),
+    ) {
+        StyleThumbnail(style, preview)
+        Spacer(Modifier.height(7.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                style.label,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier.weight(1f),
+            )
+            if (selected) Icon(Icons.Outlined.Check, null, tint = theme.primary, modifier = Modifier.size(14.dp))
+        }
+    }
+}
+
+@Composable
+private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.ColorScheme) {
+    val flat = style == JzStyle.PAPER || style == JzStyle.INK
+    val nav = RoundedCornerShape((style.navRadius / 2).dp)
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+            .background(scheme.background).padding(7.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(Modifier.fillMaxWidth(if (style.titleSize > 26) 0.42f else 0.3f)
+            .height((style.titleSize / 5).dp).background(scheme.onBackground, CircleShape))
+        val fill = if (flat) scheme.surface else scheme.primary
+        val detail = if (flat) scheme.primary else scheme.onPrimary
+        Box(
+            Modifier.fillMaxWidth().height(25.dp).clip(style.shapes.medium).background(fill)
+                .then(if (flat) Modifier.border(1.dp, scheme.outline, style.shapes.medium) else Modifier)
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(Modifier.fillMaxWidth(0.4f).height(3.dp).background(detail.copy(alpha = 0.8f), CircleShape))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = if (style.navInset > 0) 7.dp else 0.dp)
+                .clip(nav).background(scheme.surface).border(1.dp, scheme.outline, nav).padding(4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(if (style.indicator == TabIndicator.PILL) 14.dp else 7.dp, 4.dp)
+                .background(scheme.primary, CircleShape))
+            repeat(3) {
+                Box(Modifier.size(5.dp, 4.dp).background(scheme.onSurfaceVariant.copy(alpha = 0.6f), CircleShape))
+            }
+        }
     }
 }
 
@@ -477,7 +623,7 @@ private fun PresetCard(
                 else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(12.dp),
             )
-            .clickable {
+            .selectable(selected = selected, role = Role.RadioButton) {
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT < 31) {
                     android.widget.Toast.makeText(
@@ -495,6 +641,9 @@ private fun PresetCard(
                 .clip(CircleShape)
                 .background(
                     when {
+                        preset == JzPreset.STYLE -> androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(LocalJzStyle.current.defaultAccent(false), LocalJzStyle.current.defaultAccent(true)),
+                        )
                         preset == JzPreset.MATERIAL_YOU ->
                             androidx.compose.ui.graphics.Brush.sweepGradient(
                                 listOf(
@@ -518,8 +667,9 @@ private fun PresetCard(
                 Icon(
                     Icons.Outlined.Check,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(19.dp)
+                        .background(MaterialTheme.colorScheme.surface, CircleShape).padding(2.dp),
                 )
             }
         }

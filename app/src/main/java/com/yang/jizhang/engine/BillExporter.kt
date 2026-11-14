@@ -46,7 +46,7 @@ object BillExporter {
         append("交易时间,收/支,金额,分类,备注,来源\n")
         val row = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
         for (t in txs) {
-            val amount = "%.2f".format(t.amountCents / 100.0)
+            val amount = "%.2f".format(Locale.ROOT, t.amountCents / 100.0)
             append(
                 "${row.format(Date(t.time))},${if (t.isIncome) "收入" else "支出"},$amount," +
                     "${esc(t.category)},${esc(t.note)},${esc(t.source)}\n"
@@ -55,7 +55,7 @@ object BillExporter {
     }
 
     private fun esc(v: String) =
-        if (v.contains(",") || v.contains("\"") || v.contains("\n")) "\"${v.replace("\"", "\"\"")}\"" else v
+        if (v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r")) "\"${v.replace("\"", "\"\"")}\"" else v
 
     /** 写入公共「下载/Jizhang」，返回可分享 Uri（同名覆盖） */
     fun writeText(context: Context, fileName: String, content: String, mime: String): Uri? {

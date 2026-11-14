@@ -83,7 +83,7 @@ fun RecordsTab(
         // 顶部：大标题 + 月份切换 + 搜索
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(12.dp))
-            Text("账单", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
+            PageTitle("账单")
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MonthSwitcher(
@@ -120,6 +120,7 @@ fun RecordsTab(
 
         // 分组列表
         val groups = remember(filtered) { groupByDay(filtered) }
+        val powerSaving = LocalPowerSaving.current
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -176,7 +177,7 @@ fun RecordsTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .shadow(3.dp, MaterialTheme.shapes.large)
-                            .animateItem(),
+                            .then(if (powerSaving) Modifier else Modifier.animateItem()),
                     ) {
                         Column {
                             g.items.forEachIndexed { i, tx ->

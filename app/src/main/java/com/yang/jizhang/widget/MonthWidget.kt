@@ -29,6 +29,9 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.yang.jizhang.data.AppDatabase
+import com.yang.jizhang.ui.JzPreset
+import com.yang.jizhang.ui.ThemePrefs
+import com.yang.jizhang.ui.defaultAccent
 import com.yang.jizhang.ui.fmtMoney
 import com.yang.jizhang.util.Periods
 import kotlinx.coroutines.runBlocking
@@ -46,7 +49,10 @@ class MonthWidget : GlanceAppWidget() {
         val balance = income - expense
         val mainActivity = ComponentName(context, "com.yang.jizhang.ui.MainActivity")
         // 主题联动（v3.8.0）：小组件标题用当前预设主色
-        val accent = com.yang.jizhang.ui.ThemePrefs.preset(context).accentDark
+        val preset = ThemePrefs.preset(context)
+        val night = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val accent = if (preset == JzPreset.STYLE) ThemePrefs.style(context).defaultAccent(night) else preset.accentDark
 
         provideContent {
             GlanceTheme {

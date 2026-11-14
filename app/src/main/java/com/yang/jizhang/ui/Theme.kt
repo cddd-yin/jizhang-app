@@ -3,6 +3,7 @@ package com.yang.jizhang.ui
 import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -10,6 +11,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -32,6 +35,7 @@ enum class JzPreset(
     /** 浅色模式主色 */
     val accentLight: Color,
 ) {
+    STYLE("随界面风格", Color.Unspecified, Color.Unspecified),
     MATERIAL_YOU("动态取色", Color(0xFF6750A4), Color(0xFF6750A4)), // Material You（Android 12+ 壁纸取色，官方设计语言）
     CUSTOM("自定义", Color(0xFF7C7C8A), Color(0xFF5B5B66)),        // v5.2 用户自选种子色派生
     SKY("天码", Color(0xFF00A6F4), Color(0xFF0084D1)),        // v5.0 默认 · ZCode 天蓝（sky-500/sky-600）
@@ -46,11 +50,41 @@ enum class JzMode(val label: String) {
     SYSTEM("跟随系统"), LIGHT("浅色"), DARK("深色"),
 }
 
-/** 风格方案（v5.2.0）：圆角与玻璃层的组合档位 */
-enum class JzStyle(val label: String, val desc: String) {
-    GLASS("玻璃", "大圆角 + 毛玻璃底栏"),
-    COMPACT("紧凑", "小圆角 + 实底底栏，更省电"),
+internal enum class TabIndicator { PILL, TINT, UNDERLINE }
+
+enum class JzStyle(
+    val label: String,
+    val desc: String,
+    val shapes: Shapes,
+    internal val titleSize: Int = 26,
+    internal val titleWeight: FontWeight = FontWeight.SemiBold,
+    internal val navRadius: Int = 22,
+    internal val navHeight: Int = 64,
+    internal val navInset: Int = 0,
+    internal val blurRadius: Int = 0,
+    internal val indicator: TabIndicator = TabIndicator.PILL,
+) {
+    GLASS("玻璃", "大圆角卡片和磨砂底栏", shapeSet(8, 12, 16, 22, 28), blurRadius = 22),
+    COMPACT("紧凑", "小圆角卡片和实底底栏", shapeSet(6, 8, 12, 14, 18)),
+    IOS("苹果 iOS", "大标题、分组卡片和悬浮磨砂底栏", shapeSet(9, 12, 16, 20, 28),
+        titleSize = 34, titleWeight = FontWeight.Bold, navRadius = 28, navHeight = 58, navInset = 16,
+        blurRadius = 26, indicator = TabIndicator.TINT),
+    ORIGIN_OS("vivo OriginOS", "圆润卡片、大号结余和胶囊导航", shapeSet(10, 16, 22, 30, 36),
+        titleSize = 32, titleWeight = FontWeight.Bold, navRadius = 32, navHeight = 62, navInset = 12),
+    PAPER("纸质账本", "暖色纸面、细边框和下划线导航", shapeSet(3, 5, 7, 9, 12),
+        titleSize = 30, navRadius = 0, navHeight = 58, indicator = TabIndicator.UNDERLINE),
+    INK("墨黑", "深色模式使用纯黑底，搭配简洁导航", shapeSet(4, 7, 10, 14, 20),
+        titleSize = 30, titleWeight = FontWeight.Bold, navRadius = 0, navHeight = 56,
+        indicator = TabIndicator.TINT);
 }
+
+private fun shapeSet(xs: Int, s: Int, m: Int, l: Int, xl: Int) = Shapes(
+    extraSmall = RoundedCornerShape(xs.dp),
+    small = RoundedCornerShape(s.dp),
+    medium = RoundedCornerShape(m.dp),
+    large = RoundedCornerShape(l.dp),
+    extraLarge = RoundedCornerShape(xl.dp),
+)
 
 /** 从种子色派生深/浅两档主色（HSV：深色提亮保可读，浅色压深保对比） */
 fun deriveAccentsFromSeed(seedArgb: Int): Pair<Color, Color> {
@@ -76,9 +110,9 @@ object ThemePrefs {
         runCatching {
             JzPreset.valueOf(
                 context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
-                    .getString(KEY_PRESET, null) ?: JzPreset.SKY.name
+                    .getString(KEY_PRESET, null) ?: JzPreset.STYLE.name
             )
-        }.getOrDefault(JzPreset.SKY)
+        }.getOrDefault(JzPreset.STYLE)
 
     fun mode(context: Context): JzMode =
         runCatching {
@@ -138,95 +172,78 @@ val JzChartColors = listOf(
     Color(0xFFA78BFA), // 亮紫
 )
 
-// ── 表面（v5.0.0：ZCode 中性灰阶 token，提取自 app.asar Tailwind CSS） ──
-private val DarkPage = Color(0xFF171717)      // neutral-900
-private val DarkCard = Color(0xFF262626)      // neutral-800
-private val DarkCardHi = Color(0xFF303030)    // neutral-700 面板
-private val DarkOn = Color(0xFFE5E5E5)        // neutral-200
-private val DarkSub = Color(0xFFA1A1A1)       // neutral-400
-private val DarkStroke = Color(0xFF2E2E2E)    // neutral-50@10%
+private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: Long, border: Long) {
+    val page = Color(page)
+    val card = Color(card)
+    val panel = Color(panel)
+    val text = Color(text)
+    val muted = Color(muted)
+    val border = Color(border)
+}
 
-private val LightPage = Color(0xFFFAFAFA)     // neutral-50
-private val LightCard = Color(0xFFFFFFFF)
-private val LightCardHi = Color(0xFFF5F5F5)   // neutral-100
-private val LightOn = Color(0xFF404040)       // neutral-700
-private val LightSub = Color(0xFF737373)      // neutral-500
-private val LightStroke = Color(0xFFE6E6E6)   // neutral-950@10%
+private val neutralLight = Surfaces(0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF404040, 0xFF666666, 0xFFE6E6E6)
+private val neutralDark = Surfaces(0xFF171717, 0xFF262626, 0xFF303030, 0xFFE5E5E5, 0xFFA1A1A1, 0xFF2E2E2E)
+private val iosLight = Surfaces(0xFFF2F2F7, 0xFFFFFFFF, 0xFFE8E8ED, 0xFF17171B, 0xFF606068, 0xFFDADAE0)
+private val iosDark = Surfaces(0xFF0B0B0D, 0xFF1C1C1E, 0xFF2C2C2E, 0xFFF5F5F7, 0xFFAEAEB2, 0xFF38383A)
+private val originLight = Surfaces(0xFFF0F4FD, 0xFFFFFFFF, 0xFFE4EDFC, 0xFF172339, 0xFF4B5B74, 0xFFD4DFF1)
+private val originDark = Surfaces(0xFF101621, 0xFF1B2639, 0xFF293750, 0xFFEBF2FF, 0xFFABBBD4, 0xFF334764)
+private val paperLight = Surfaces(0xFFF5EDE0, 0xFFFFF9EF, 0xFFEDE1D0, 0xFF392B23, 0xFF655247, 0xFFD8C4AF)
+private val paperDark = Surfaces(0xFF1B1613, 0xFF271F19, 0xFF382C23, 0xFFF3E6D6, 0xFFC4AD98, 0xFF5A4739)
+private val inkLight = Surfaces(0xFFF1F1F1, 0xFFFFFFFF, 0xFFE5E5E5, 0xFF111111, 0xFF515151, 0xFFCCCCCC)
+private val inkDark = Surfaces(0xFF000000, 0xFF0D0D0D, 0xFF1C1C1C, 0xFFF5F5F5, 0xFFB4B4B4, 0xFF363636)
 
-/** 主色容器：主色降饱和落深色表面（选中态底色等） */
-private fun containerOf(accent: Color, dark: Boolean): Color =
-    if (dark) accent.copy(alpha = 0.16f).compositeOverDark() else accent.copy(alpha = 0.10f)
+private fun JzStyle.surfaces(dark: Boolean): Surfaces = when (this) {
+    JzStyle.IOS -> if (dark) iosDark else iosLight
+    JzStyle.ORIGIN_OS -> if (dark) originDark else originLight
+    JzStyle.PAPER -> if (dark) paperDark else paperLight
+    JzStyle.INK -> if (dark) inkDark else inkLight
+    JzStyle.GLASS, JzStyle.COMPACT -> if (dark) neutralDark else neutralLight
+}
 
-private fun Color.compositeOverDark(): Color =
-    Color(
-        red = red * 0.16f + DarkCardHi.red * 0.84f,
-        green = green * 0.16f + DarkCardHi.green * 0.84f,
-        blue = blue * 0.16f + DarkCardHi.blue * 0.84f,
-    )
+internal fun JzStyle.defaultAccent(dark: Boolean): Color = when (this) {
+    JzStyle.IOS -> if (dark) Color(0xFF459EFF) else Color(0xFF0063CE)
+    JzStyle.ORIGIN_OS -> if (dark) Color(0xFF91B1FF) else Color(0xFF3159CD)
+    JzStyle.PAPER -> if (dark) Color(0xFFF0B28A) else Color(0xFF8C3D26)
+    JzStyle.INK -> if (dark) Color(0xFFF0F0F0) else Color(0xFF272727)
+    JzStyle.GLASS, JzStyle.COMPACT -> if (dark) JzPreset.SKY.accentDark else JzPreset.SKY.accentLight
+}
 
-private fun luma(c: Color): Float = 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue
+internal fun readableOn(color: Color): Color =
+    if (color.luminance() > 0.179f) Color.Black else Color.White
 
-private fun colors(
-    preset: JzPreset,
-    dark: Boolean,
-    accentDarkOverride: Color? = null,
-    accentLightOverride: Color? = null,
-): androidx.compose.material3.ColorScheme {
-    val accentD = accentDarkOverride ?: preset.accentDark
-    val accentL = accentLightOverride ?: preset.accentLight
-    // 亮色主色（黄/亮绿系）配深前景字，其余配白字
-    val onAccentFor = if (luma(if (dark) accentD else accentL) > 0.62f) Color(0xFF10130E) else Color.White
-    return if (dark) {
-        darkColorScheme(
-            primary = accentD,
-            onPrimary = onAccentFor,
-            primaryContainer = containerOf(accentD, true),
-            onPrimaryContainer = accentD,
-            secondary = DarkCard,
-        onSecondary = DarkOn,
-        secondaryContainer = DarkCardHi,
-        onSecondaryContainer = DarkOn,
-        tertiary = WarnDark,
-        onTertiary = Color(0xFF22180A),
-        background = DarkPage,
-        onBackground = DarkOn,
-        surface = DarkCard,
-        onSurface = DarkOn,
-        surfaceVariant = DarkCardHi,
-        onSurfaceVariant = DarkSub,
-        outline = DarkStroke,
-        outlineVariant = DarkStroke,
-        error = ExpenseDark,
+internal fun styleColors(style: JzStyle, dark: Boolean, accent: Color): ColorScheme {
+    val palette = style.surfaces(dark)
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = accent,
+        onPrimary = readableOn(accent),
+        primaryContainer = accent.copy(alpha = if (dark) 0.18f else 0.12f).compositeOver(palette.card),
+        onPrimaryContainer = palette.text,
+        secondary = palette.card,
+        onSecondary = palette.text,
+        secondaryContainer = palette.panel,
+        onSecondaryContainer = palette.text,
+        tertiary = if (dark) WarnDark else WarnLight,
+        onTertiary = if (dark) Color(0xFF22180A) else Color.White,
+        background = palette.page,
+        onBackground = palette.text,
+        surface = palette.card,
+        onSurface = palette.text,
+        surfaceVariant = palette.panel,
+        onSurfaceVariant = palette.muted,
+        surfaceContainerLowest = palette.page,
+        surfaceContainerLow = palette.card,
+        surfaceContainer = palette.card,
+        surfaceContainerHigh = palette.panel,
+        surfaceContainerHighest = palette.panel,
+        surfaceTint = accent,
+        outline = palette.border,
+        outlineVariant = palette.border,
+        error = if (dark) ExpenseDark else ExpenseLight,
         onError = Color.White,
-        errorContainer = Color(0xFF3B1A1C),
-        onErrorContainer = Color(0xFFFFD9D9),
+        errorContainer = if (dark) Color(0xFF3B1A1C) else Color(0xFFFDE9E9),
+        onErrorContainer = if (dark) Color(0xFFFFD9D9) else Color(0xFF7F1D1D),
     )
-} else {
-    lightColorScheme(
-        primary = accentL,
-        onPrimary = onAccentFor,
-        primaryContainer = containerOf(accentL, false),
-        onPrimaryContainer = accentL,
-        secondary = LightCard,
-        onSecondary = LightOn,
-        secondaryContainer = LightCardHi,
-        onSecondaryContainer = LightOn,
-        tertiary = WarnLight,
-        onTertiary = Color.White,
-        background = LightPage,
-        onBackground = LightOn,
-        surface = LightCard,
-        onSurface = LightOn,
-        surfaceVariant = LightCardHi,
-        onSurfaceVariant = LightSub,
-        outline = LightStroke,
-        outlineVariant = LightStroke,
-        error = ExpenseLight,
-        onError = Color.White,
-        errorContainer = Color(0xFFFDE9E9),
-        onErrorContainer = Color(0xFF7F1D1D),
-        )
-    }
 }
 
 // ── 字体 ──
@@ -254,24 +271,19 @@ val JzTypography = Typography(
     labelSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 10.sp),
 )
 
-val JzShapesGlass = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),      // Liquid Glass 大圆角
-    extraLarge = RoundedCornerShape(28.dp),
-)
+internal val LocalJzStyle = androidx.compose.runtime.staticCompositionLocalOf { JzStyle.GLASS }
 
-val JzShapesCompact = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(14.dp),
-    extraLarge = RoundedCornerShape(18.dp),
-)
-
-/** 兼容旧名 */
-val JzShapes = JzShapesGlass
+@Composable
+internal fun PageTitle(text: String, modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
+    val style = LocalJzStyle.current
+    androidx.compose.material3.Text(
+        text,
+        modifier = modifier,
+        fontSize = style.titleSize.sp,
+        fontWeight = style.titleWeight,
+        letterSpacing = (-0.3).sp,
+    )
+}
 
 /** 实际生效的深浅模式（强制浅/深色时与系统不一致，语义色据此取值） */
 val LocalJzDark = androidx.compose.runtime.staticCompositionLocalOf { true }
@@ -292,28 +304,44 @@ fun accentColor(): Color = MaterialTheme.colorScheme.primary
 @Composable
 fun JizhangTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    preset: JzPreset = JzPreset.DEEP_SEA,
+    preset: JzPreset = JzPreset.STYLE,
     style: JzStyle = JzStyle.GLASS,
     customSeed: Int? = null,
+    powerSaving: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    // Material You（v4.1.0）：Android 12+ 整套配色直接取系统动态色（官方 API）
-    val scheme = if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT >= 31) {
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
-        else androidx.compose.material3.dynamicLightColorScheme(ctx)
-    } else if (preset == JzPreset.CUSTOM && customSeed != null) {
-        // v5.2：自定义种子色派生（HSV：深色提亮 / 浅色压深）
-        val (dark, light) = deriveAccentsFromSeed(customSeed)
-        colors(JzPreset.CUSTOM, darkTheme, dark, light)
-    } else {
-        colors(preset, darkTheme)
+    val scheme = when {
+        preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT >= 31 -> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val dynamic = if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
+                else androidx.compose.material3.dynamicLightColorScheme(ctx)
+            if (style == JzStyle.GLASS || style == JzStyle.COMPACT) dynamic
+            else styleColors(style, darkTheme, dynamic.primary)
+        }
+        else -> {
+            val accent = when {
+                preset == JzPreset.STYLE -> style.defaultAccent(darkTheme)
+                preset == JzPreset.CUSTOM && customSeed != null -> {
+                    val (dark, light) = deriveAccentsFromSeed(customSeed)
+                    if (darkTheme) dark else light
+                }
+                else -> {
+                    val resolved = if (preset == JzPreset.MATERIAL_YOU) JzPreset.DEEP_SEA else preset
+                    if (darkTheme) resolved.accentDark else resolved.accentLight
+                }
+            }
+            styleColors(style, darkTheme, accent)
+        }
     }
-    androidx.compose.runtime.CompositionLocalProvider(LocalJzDark provides darkTheme) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalJzDark provides darkTheme,
+        LocalJzStyle provides style,
+        LocalPowerSaving provides powerSaving,
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             typography = JzTypography,
-            shapes = if (style == JzStyle.GLASS) JzShapesGlass else JzShapesCompact,
+            shapes = style.shapes,
             content = content,
         )
     }

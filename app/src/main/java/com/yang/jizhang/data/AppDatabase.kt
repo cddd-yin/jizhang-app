@@ -146,15 +146,52 @@ interface RecurringDao {
     suspend fun getAllOnce(): List<RecurringEntity>
 }
 
+@Entity(tableName = "pending_bills", indices = [Index(value = ["eventKey"], unique = true)])
+data class PendingBill(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val eventKey: String,
+    val amountCents: Long,
+    val isIncome: Boolean,
+    val merchant: String,
+    val source: String,
+    val transactionTime: Long,
+    val reason: String?,
+    val rawSnippet: String?,
+    val handledAt: Long? = null,
+)
+
+@Dao
+interface PendingBillDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(bill: PendingBill): Long
+
+    @Query("SELECT * FROM pending_bills WHERE handledAt IS NULL ORDER BY transactionTime DESC, id DESC")
+    fun watchAll(): Flow<List<PendingBill>>
+
+    @Query("SELECT * FROM pending_bills WHERE id = :id AND handledAt IS NULL")
+    suspend fun find(id: Long): PendingBill?
+
+    @Query("""
+        UPDATE pending_bills
+        SET handledAt = :now, merchant = '', reason = NULL, rawSnippet = NULL
+        WHERE id = :id AND handledAt IS NULL
+    """)
+    suspend fun markHandled(id: Long, now: Long): Int
+
+    @Query("DELETE FROM pending_bills WHERE handledAt < :cutoff")
+    suspend fun pruneHandled(cutoff: Long)
+}
+
 @Database(
-    entities = [TxEntity::class, BudgetEntity::class, RecurringEntity::class],
-    version = 2,
+    entities = [TxEntity::class, BudgetEntity::class, RecurringEntity::class, PendingBill::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun txDao(): TxDao
     abstract fun budgetDao(): BudgetDao
     abstract fun recurringDao(): RecurringDao
+    abstract fun pendingBillDao(): PendingBillDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -186,10 +223,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS pending_bills (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        eventKey TEXT NOT NULL,
+                        amountCents INTEGER NOT NULL,
+                        isIncome INTEGER NOT NULL,
+                        merchant TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        transactionTime INTEGER NOT NULL,
+                        reason TEXT,
+                        rawSnippet TEXT,
+                        handledAt INTEGER
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_pending_bills_eventKey ON pending_bills (eventKey)")
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, AppDatabase::class.java, "jizhang.db"
-            ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
         }
     }
 }

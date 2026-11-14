@@ -20,6 +20,7 @@ data class ShareDraftItem(
 object UiBus {
     @Volatile var sharePending: ShareDraftItem? = null
     @Volatile var openEditorRequest: Boolean = false
+    @Volatile var pendingBillRequest: Long? = null
 }
 
 private val PATTERN_SYMBOL = Regex("[￥¥]\\s*([\\d,]+(?:\\.\\d{1,2})?)")
