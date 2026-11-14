@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-labelledby="title">
-  <title id="title">天蓝账本桌面图标</title>
-  <rect width="108" height="108" rx="25" fill="#EAF5FC"/>
-  <path fill="#A7DDFB" d="M46,35 H72 Q79,35 79,42 V70 Q79,78 72,78 H46 Q38,78 38,70 V42 Q38,35 46,35 Z"/>
-  <path fill="#FFFFFF" d="M39,31 H69 Q77,31 77,39 V69 Q77,77 69,77 H39 Q31,77 31,69 V39 Q31,31 39,31 Z"/>
-  <path fill="#0084D1" d="M41,47 H66 V51 H41 Z M41,56 H62 V60 H41 Z M41,65 H57 V69 H41 Z M66,38 a2.5,2.5 0,1 0,5 0 a2.5,2.5 0,1 0,-5 0 Z"/>
+  <title id="title">账浪桌面图标</title>
+  <defs><clipPath id="mask"><rect width="108" height="108" rx="25"/></clipPath></defs>
+  <g clip-path="url(#mask)">
+    <path fill="#080B29" d="M0,0 H108 V108 H0 Z"/>
+    <path fill="#2925B9" d="M0,108 V88 L108,39 V108 Z"/>
+    <path fill="#00BFF5" d="M27,62 L44,42 L61,56 L78,38 L83,48 L62,70 L46,55 L32,72 Z"/>
+    <path fill="#B8F8FF" d="M27,62 L44,42 L61,56 L78,38 L80,43 L61,63 L45,49 L29,66 Z"/>
+  </g>
 </svg>
