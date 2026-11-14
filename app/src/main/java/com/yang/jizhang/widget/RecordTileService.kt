@@ -1,5 +1,6 @@
 package com.yang.jizhang.widget
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
@@ -18,6 +19,8 @@ class RecordTileService : TileService() {
         }
     }
 
+    // 旧 Intent 接口只在 Android 13 及以下的分支调用。
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
         val intent = Intent(this, MainActivity::class.java).apply {
