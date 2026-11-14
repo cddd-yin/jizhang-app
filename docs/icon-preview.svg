@@ -1,10 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-labelledby="title">
-  <title id="title">账浪桌面图标</title>
+  <title id="title">Voyager 桌面图标</title>
   <defs><clipPath id="mask"><rect width="108" height="108" rx="25"/></clipPath></defs>
   <g clip-path="url(#mask)">
-    <path fill="#080B29" d="M0,0 H108 V108 H0 Z"/>
-    <path fill="#2925B9" d="M0,108 V88 L108,39 V108 Z"/>
-    <path fill="#00BFF5" d="M27,62 L44,42 L61,56 L78,38 L83,48 L62,70 L46,55 L32,72 Z"/>
-    <path fill="#B8F8FF" d="M27,62 L44,42 L61,56 L78,38 L80,43 L61,63 L45,49 L29,66 Z"/>
+    <path fill="#1A1B3A" d="M0,0 H108 V108 H0 Z"/>
+    <path fill="#292748" d="M0,86 Q45,58 108,76 V108 H0 Z"/>
+    <path fill="#A39ADE" d="M29,57 C36,43 48,38 57,39 L57,41 C48,40 37,46 31,58 Z M52,75 C61,75 70,70 77,59 L79,60 C72,72 62,77 52,77 Z"/>
+    <path fill="#E8C56A" d="M49,49 Q52,62 64,65 Q52,68 49,79 Q46,68 34,65 Q46,62 49,49 Z"/>
+    <path fill="#E8C56A" d="M60,34 L63,35 L62,64 L59,66 Z"/>
+    <path fill="#E8C56A" d="M61,33 Q70,39 77,42 Q75,50 69,51 Q72,46 64,43 L61,41 Z"/>
+    <path fill="#F5DFA5" d="M75,53 L77,57 L81,59 L77,61 L75,65 L73,61 L69,59 L73,57 Z"/>
   </g>
 </svg>
