@@ -77,7 +77,7 @@ interface TxDao {
     suspend fun update(tx: TxEntity)
 
     @Delete
-    suspend fun delete(tx: TxEntity)
+    suspend fun delete(tx: TxEntity): Int
 
     @Query("SELECT * FROM transactions WHERE time BETWEEN :start AND :end ORDER BY time DESC")
     fun watchRange(start: Long, end: Long): Flow<List<TxEntity>>

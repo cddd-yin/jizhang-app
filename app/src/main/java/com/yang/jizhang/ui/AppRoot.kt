@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
@@ -166,14 +167,28 @@ fun AppRoot() {
     // 左滑删除账单 + Snackbar 撤销
     val deleteWithUndo: (TxEntity) -> Unit = { tx ->
         scope.launch {
-            runCatching { dao.delete(tx) }
+            try {
+                if (dao.delete(tx) == 0) return@launch
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                snackbarHostState.showSnackbar("删除失败，请重试")
+                return@launch
+            }
             val result = snackbarHostState.showSnackbar(
                 message = "已删除「${tx.note.ifBlank { tx.category }}」",
                 actionLabel = "撤销",
-                duration = androidx.compose.material3.SnackbarDuration.Short,
+                duration = androidx.compose.material3.SnackbarDuration.Long,
             )
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                runCatching { dao.insertIgnore(tx) }
+                try {
+                    val restored = dao.insertIgnore(tx) != -1L || dao.findByDedupeKey(tx.dedupeKey) != null
+                    snackbarHostState.showSnackbar(if (restored) "账单已恢复" else "恢复失败，请重新记入这笔账单")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    snackbarHostState.showSnackbar("恢复失败，请重新记入这笔账单")
+                }
             }
         }
     }
@@ -264,6 +279,7 @@ fun AppRoot() {
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = when (themeStyle) {
                     JzStyle.GLASS, JzStyle.COMPACT, JzStyle.IOS -> CircleShape
+                    JzStyle.VOYAGER -> CutCornerShape(topEnd = 14.dp, bottomStart = 9.dp)
                     else -> MaterialTheme.shapes.large
                 },
             ) {
@@ -279,6 +295,10 @@ fun AppRoot() {
             transitionSpec = {
                 if (powerSaving) {
                     androidx.compose.animation.EnterTransition.None.togetherWith(androidx.compose.animation.ExitTransition.None)
+                        .using(null)
+                } else if (themeStyle == JzStyle.VOYAGER) {
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200))
+                        .togetherWith(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)))
                         .using(null)
                 } else (
                     androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
@@ -505,7 +525,8 @@ internal fun handleExportResult(context: Context, uri: Uri?) {
 
 /** 供重连横幅/设置页共用：强制重连监听 */
 internal fun forceReconnect(context: Context) {
-    ListenerHealth.requestRebind(context, force = true)
+    if (!ListenerHealth.isEnabledInSettings(context)) return
+    if (!ListenerHealth.forceReconnect(context)) ListenerHealth.requestRebind(context)
     GuardianService.start(context)
 }
 
@@ -592,7 +613,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolea
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // 选中弹簧弹跳（v3.13.0）
-    val scale = if (LocalPowerSaving.current) 1f else androidx.compose.animation.core.animateFloatAsState(
+    val scale = if (LocalPowerSaving.current || style == JzStyle.VOYAGER) 1f else androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (selected) 1.12f else 1f,
         animationSpec = androidx.compose.animation.core.spring(
             dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
@@ -611,6 +632,12 @@ private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolea
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        if (style.indicator == TabIndicator.VOYAGER) {
+            Box(
+                Modifier.size(6.dp).graphicsLayer { rotationZ = 45f }
+                    .background(if (selected) tint else androidx.compose.ui.graphics.Color.Transparent),
+            )
+        }
         Box(
             Modifier
                 .size(width = 52.dp, height = 28.dp)

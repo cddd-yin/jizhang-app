@@ -1,15 +1,16 @@
 package com.yang.jizhang
 
 import java.util.Calendar
+import java.util.Locale
 
 /** 根据交易描述关键词猜测分类 */
 object CategoryRules {
 
-    val RULES = listOf(
+    private val RULES = listOf(
         // ═══ 餐饮 ═══
         listOf(
             "麦当劳", "肯德基", "KFC", "星巴克", "瑞幸", "喜茶", "奈雪",
-            "美团", "饿了么", "外卖", "餐饮", "餐厅", "饭店", "食堂",
+            "饿了么", "外卖", "餐饮", "餐厅", "饭店", "食堂",
             "奶茶", "咖啡", "蛋糕", "面包", "烧烤", "火锅", "小吃",
             "必胜客", "汉堡王", "海底捞", "西贝", "呷哺", "真功夫",
             "蜜雪冰城", "茶百道", "古茗", "沪上阿姨", "霸王茶姬", "面馆"
@@ -18,8 +19,8 @@ object CategoryRules {
         listOf(
             "滴滴", "高德", "打车", "出租车", "地铁", "公交", "一卡通",
             "加油", "加油站", "中石油", "中石化", "壳牌", "停车",
-            "高速", "ETC", "过路费", "火车", "12306", "机票", "携程",
-            "飞猪", "去哪儿", "同程", "哈啰", "青桔", "美团单车",
+            "高速", "ETC", "过路费", "火车", "12306", "机票", "高铁", "铁路",
+            "哈啰", "青桔", "美团单车",
             "曹操出行", "T3出行", "花小猪", "首汽", "神州", "共享单车",
             "航空", "出行"
         ) to "交通出行",
@@ -27,11 +28,11 @@ object CategoryRules {
         listOf(
             "淘宝", "天猫", "京东", "拼多多", "苏宁", "国美",
             "唯品会", "得物", "闲鱼", "转转", "亚马逊",
-            "良品铺子", "旗舰店",
+            "良品铺子",
             "商城", "超市", "便利店", "711", "全家", "罗森",
             "优衣库", "ZARA", "H&M", "耐克", "阿迪", "李宁", "安踏",
             "抖音商城", "抖音超市", "快手小店", "小红书商城",
-            "华为", "小米", "苹果", "Apple", "数码", "电器",
+            "华为商城", "小米商城", "Apple Store", "数码", "电器",
             "叮咚买菜", "盒马", "每日优鲜", "永辉", "大润发", "沃尔玛",
             "山姆", "Costco", "开市客", "物美", "华润万家", "联华", "购物",
             "商场"
@@ -39,43 +40,43 @@ object CategoryRules {
         // ═══ 生活缴费 ═══
         listOf(
             "物业", "物业费", "水电", "电费", "水费", "燃气", "天然气",
-            "宽带", "话费", "充值", "移动", "联通", "电信", "网费", "流量",
+            "宽带", "话费", "中国移动", "中国联通", "中国电信", "网费", "流量包",
             "缴费"
         ) to "生活缴费",
         // ═══ 居住 ═══
         listOf(
-            "房租", "租金", "房贷", "贷款", "还款",
+            "房租", "租金", "房贷",
             "装修", "家具", "家电", "建材", "五金",
-            "家政", "保洁", "维修", "管道", "开锁",
+            "家政", "保洁", "房屋维修", "管道", "开锁",
             "酒店", "住宿", "民宿"
         ) to "居住住房",
         // ═══ 娱乐 ═══
         listOf(
             "王者荣耀", "和平精英", "原神", "网易游戏", "腾讯游戏",
-            "Steam", "游戏", "充值", "点券", "钻石", "皮肤",
-            "电影", "影院", "万达", "猫眼", "淘票票",
+            "Steam", "游戏", "点券", "钻石", "皮肤",
+            "电影", "影院", "猫眼", "淘票票",
             "爱奇艺", "优酷", "腾讯视频", "B站", "哔哩哔哩", "哔哩",
             "网易云", "QQ音乐", "Spotify",
             "KTV", "酒吧", "迪厅", "游乐", "景区", "门票",
-            "快手", "小红书", "直播", "打赏", "会员", "视频", "音乐", "演出"
+            "直播", "打赏", "视频会员", "音乐会员", "演出"
         ) to "娱乐休闲",
         // ═══ 医疗 ═══
         listOf(
             "医院", "诊所", "药店", "药房", "大药房", "老百姓",
             "挂号", "门诊", "住院", "体检", "疫苗",
             "口腔", "牙科", "眼科", "皮肤科",
-            "美团买药", "京东健康", "阿里健康", "叮当", "药"
+            "美团买药", "京东健康", "阿里健康", "叮当快药", "购药", "处方药"
         ) to "医疗健康",
         // ═══ 教育 ═══
         listOf(
             "学校", "培训", "教育", "课程", "学费", "辅导",
             "书店", "图书", "当当", "文具",
-            "考试", "报名", "教材", "网课",
-            "得到", "知乎", "极客", "慕课", "书本", "打印"
+            "考试", "教材", "网课",
+            "得到课程", "知乎盐选", "极客时间", "慕课", "书本", "打印"
         ) to "学习教育",
         // ═══ 收入进账 ═══
         listOf(
-            "工资", "薪", "奖金", "分红", "理财", "利息", "收益",
+            "工资", "薪资", "薪水", "奖金", "分红", "理财", "利息", "收益",
             "报销", "返现", "奖励"
         ) to "收入进账",
         // ═══ 红包转账 ═══
@@ -84,24 +85,37 @@ object CategoryRules {
         ) to "红包转账",
     )
 
-    /**
-     * 返回命中的分类名，未命中返回「其他」。
-     * v3.12.0：全规则找**最长命中关键词**（特异性优先）——修复"王者荣耀充值"被
-     * 生活缴费组的短词"充值"抢先命中的一类歧义（同长保持规则组先序）。
-     */
-    fun guess(vararg texts: String?): String {
-        val joined = texts.filterNotNull().joinToString(" ")
-        var bestLen = -1
-        var best: String? = null
-        for ((keywords, category) in RULES) {
-            for (kw in keywords) {
-                if (kw.length > bestLen && kw in joined) {
-                    bestLen = kw.length
-                    best = category
-                }
-            }
+    private const val OTHER = "其他"
+    private val platforms = listOf("淘宝", "天猫", "京东", "拼多多", "得物", "闲鱼")
+    private val specificRules = RULES.flatMap { (words, category) ->
+        words.filterNot { it in platforms }.map { word ->
+            val value = word.lowercase(Locale.ROOT)
+            val match = if (value.all { it.isAsciiLetterOrDigit() || it == ' ' || it == '&' }) {
+                Regex("(?<![a-z0-9])${Regex.escape(value)}(?![a-z0-9])")
+            } else null
+            Rule(value, category, match)
         }
-        return best ?: "其他"
+    }.sortedByDescending { it.word.length }
+
+    private data class Rule(val word: String, val category: String, val match: Regex?)
+
+    private fun Char.isAsciiLetterOrDigit() = this in 'a'..'z' || this in '0'..'9'
+
+    /** 先匹配消费内容和具体商户，电商渠道仅在无具体线索时兜底。 */
+    fun guess(vararg texts: String?, isIncome: Boolean? = null): String {
+        val joined = texts.filterNotNull().joinToString(" ").lowercase(Locale.ROOT)
+        val category = specificRules.firstOrNull { (word, category, match) ->
+            (match?.containsMatchIn(joined) ?: (word in joined)) && when (isIncome) {
+                true -> category == "收入进账" || category == "红包转账"
+                false -> category != "收入进账"
+                null -> true
+            }
+        }?.category
+        return category ?: when {
+            isIncome == true -> "收入进账"
+            platforms.any { it in joined } -> "购物消费"
+            else -> OTHER
+        }
     }
 
     /** 各分类对应的图标（emoji，简洁直观；自定义分类走 🏷️） */

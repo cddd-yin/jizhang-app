@@ -93,7 +93,7 @@ object BillImporter {
                             amountCents = bill.cents,
                             isIncome = bill.income,
                             category = bill.category.ifBlank {
-                                CategoryLearner.hint(context, bill.party) ?: CategoryRules.guess(bill.party, bill.description)
+                                CategoryLearner.hint(context, bill.party) ?: CategoryRules.guess(bill.party, bill.description, isIncome = bill.income)
                             },
                             note = note,
                             source = Source.IMPORT,

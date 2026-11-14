@@ -45,9 +45,8 @@ fun parseShareText(context: android.content.Context?, raw: String): ShareDraftIt
     if (cents <= 0) return null
 
     val isIncome = INCOME_HINTS.any { text.contains(it) }
-    var category = (context?.let { com.yang.jizhang.util.CategoryLearner.hint(it, text) })
-        ?: CategoryRules.guess(text)
-    if (isIncome && category == "餐饮美食") category = "收入进账"
+    val category = (context?.let { com.yang.jizhang.util.CategoryLearner.hint(it, text) })
+        ?: CategoryRules.guess(text, isIncome = isIncome)
     return ShareDraftItem(
         amountCents = cents,
         isIncome = isIncome,

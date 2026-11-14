@@ -1,5 +1,6 @@
 package com.yang.jizhang.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,11 +17,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +61,8 @@ fun StatsTab(
     var mode by rememberSaveable { mutableStateOf("month") }
     val chartPalette = chartColors()
     val isYear = mode == "year"
+    val archive = LocalJzStyle.current == JzStyle.VOYAGER
+    var selectedPeriod by rememberSaveable(isYear, year, month) { mutableIntStateOf(5) }
 
     // ── 月模式数据 ──
     val expense = txs.filter { !it.isIncome }
@@ -76,16 +85,9 @@ fun StatsTab(
     val sixMonthTxs by dao.watchSince(months.first().first)
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
-    val barCurrent = accentColor()
-    val barOther = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
-    val expenseByMonth = remember(sixMonthTxs, months, barCurrent, barOther) {
-        months.mapIndexed { i, (s, e, label) ->
-            ChartEntry(
-                label = label,
-                value = sixMonthTxs.filter { !it.isIncome && it.time in s until e }
-                    .sumOf { it.amountCents }.toDouble(),
-                color = if (i == 5) barCurrent else barOther,
-            )
+    val expenseByMonth = remember(sixMonthTxs, months) {
+        months.map { (start, end, label) ->
+            label to sixMonthTxs.filter { !it.isIncome && it.time in start until end }.sumOf { it.amountCents }
         }
     }
 
@@ -132,14 +134,9 @@ fun StatsTab(
     }
     val sixYearTxs by dao.watchSince(years.first().first)
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    val expenseByYear = remember(sixYearTxs, years, barCurrent, barOther) {
-        years.mapIndexed { i, (s, e, label) ->
-            ChartEntry(
-                label = label,
-                value = sixYearTxs.filter { !it.isIncome && it.time in s until e }
-                    .sumOf { it.amountCents }.toDouble(),
-                color = if (i == 5) barCurrent else barOther,
-            )
+    val expenseByYear = remember(sixYearTxs, years) {
+        years.map { (start, end, label) ->
+            label to sixYearTxs.filter { !it.isIncome && it.time in start until end }.sumOf { it.amountCents }
         }
     }
     val incomeByCategoryYear = remember(yearTxs) {
@@ -170,7 +167,11 @@ fun StatsTab(
     ) {
         item(key = "header") {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-                PageTitle("统计")
+                PageTitle(if (archive) "收支档案" else "统计")
+                if (archive) {
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MonthSwitcher(
@@ -229,32 +230,27 @@ fun StatsTab(
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.large,
+                border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                if (bars.all { it.value <= 0.0 }) {
-                    Text(
-                        "暂无支出记录",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 44.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                } else {
-                    BarChart(
-                        data = bars,
-                        modifier = Modifier.fillMaxWidth().height(170.dp).padding(10.dp),
-                    )
-                }
+                ExpenseTrend(
+                    periods = bars,
+                    annual = isYear,
+                    selectedIndex = selectedPeriod,
+                    onSelect = { selectedPeriod = it },
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                )
             }
         }
 
         // ── 消费日历热力图（v3.10.0，仅月模式） ──
         if (!isYear) {
-            item(key = "calendar_label") { SectionLabel("消费日历（本月）") }
+            item(key = "calendar_label") { SectionLabel("$month 月消费日历") }
             item(key = "calendar_card") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
+                    border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Column(Modifier.padding(14.dp)) {
@@ -533,20 +529,23 @@ private fun aggregateTop(
 /** 月 / 年模式切换（胶囊分段） */
 @Composable
 private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) {
+    val archive = LocalJzStyle.current == JzStyle.VOYAGER
+    val shape = if (archive) CutCornerShape(topEnd = 8.dp) else RoundedCornerShape(50)
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(50),
+        shape = shape,
+        border = if (archive) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
     ) {
-        Row(Modifier.padding(4.dp)) {
+        Row(Modifier.padding(4.dp).selectableGroup()) {
             listOf(false to "月", true to "年").forEach { (isYear, label) ->
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(shape)
                         .background(
                             if (yearSelected == isYear) MaterialTheme.colorScheme.primary
                             else androidx.compose.ui.graphics.Color.Transparent
                         )
-                        .clickable { onSelect(isYear) }
+                        .selectable(selected = yearSelected == isYear, role = Role.RadioButton) { onSelect(isYear) }
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {

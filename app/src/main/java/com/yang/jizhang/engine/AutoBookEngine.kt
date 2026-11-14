@@ -62,7 +62,7 @@ object AutoBookEngine {
         }
 
         val category = com.yang.jizhang.util.CategoryLearner.hint(app, bill.merchant)
-            ?: CategoryRules.guess(bill.merchant, bill.channel)
+            ?: CategoryRules.guess(bill.merchant, bill.channel, isIncome = bill.isIncome)
         val id = dao.insertIgnore(
             TxEntity(
                 amountCents = bill.amountCents,
@@ -120,7 +120,7 @@ object AutoBookEngine {
                     amountCents = amountCents,
                     isIncome = isIncome,
                     category = com.yang.jizhang.util.CategoryLearner.hint(app, pending.merchant)
-                        ?: CategoryRules.guess(pending.merchant, pending.source),
+                        ?: CategoryRules.guess(pending.merchant, pending.source, isIncome = isIncome),
                     note = pending.merchant.ifBlank { pending.source },
                     source = pending.source,
                     time = pending.transactionTime,

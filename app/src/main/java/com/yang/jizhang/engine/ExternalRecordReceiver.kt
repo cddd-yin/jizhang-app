@@ -41,8 +41,7 @@ class ExternalRecordReceiver : BroadcastReceiver() {
         val isIncome = (intent.getStringExtra("type") ?: "expense").equals("income", true)
         val category = intent.getStringExtra("category")?.takeIf { it in CategoryStore.all(app) }
             ?: CategoryLearner.hint(app, note)
-            ?: CategoryRules.guess(note).takeIf { !isIncome || it != "餐饮美食" }
-            ?: "收入进账"
+            ?: CategoryRules.guess(note, isIncome = isIncome)
 
         val now = System.currentTimeMillis()
         val tx = TxEntity(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,12 +38,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,6 +82,7 @@ fun HomeTab(
     onDelete: (TxEntity) -> Unit,
 ) {
     val context = LocalContext.current
+    val voyager = LocalJzStyle.current == JzStyle.VOYAGER
 
     // 「本月」随日历翻转（v3.6.0 修复：跨月零点后结余/预算仍停在旧月的粘滞问题）
     var monthStamp by remember { mutableIntStateOf(currentMonthStamp()) }
@@ -105,33 +114,24 @@ fun HomeTab(
     val incomeTotal = monthTxs.sumOf { if (it.isIncome) it.amountCents else 0L }
 
     LazyColumn(
-        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize().then(if (voyager) Modifier.statusBarsPadding() else Modifier),
         contentPadding = PaddingValues(
             top = contentPad.calculateTopPadding(),
             bottom = contentPad.calculateBottomPadding() + 96.dp,
         ),
     ) {
         item(key = "header") {
-            val voyager = LocalJzStyle.current == JzStyle.VOYAGER
-            val scheme = MaterialTheme.colorScheme
-            Column(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        PageTitle("账本")
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            if (voyager) monthLabel else "$monthLabel · 花完钱自动记账",
-                            fontSize = 13.sp,
-                            color = scheme.onSurfaceVariant,
-                        )
-                    }
-                    if (voyager) VoyagerMark(scheme.primary)
-                }
-                if (voyager) {
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider(color = scheme.outline)
+            if (voyager) {
+                VoyagerHomeHeader(monthLabel, incomeTotal, expenseTotal)
+            } else {
+                Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    PageTitle("账本")
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "$monthLabel · 花完钱自动记账",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -176,7 +176,7 @@ fun HomeTab(
         }
 
         // ── 本月结余大卡（v3.13.0：主题渐变强调卡，皮肤联动） ──
-        item(key = "balance") {
+        if (!voyager) item(key = "balance") {
             val style = LocalJzStyle.current
             val scheme = MaterialTheme.colorScheme
             val accent = scheme.primary
@@ -211,14 +211,13 @@ fun HomeTab(
                         cents = balance,
                         fontSize = if (style == JzStyle.ORIGIN_OS) 42.sp else 36.sp,
                         color = cardText,
-                        fontFamily = if (style == JzStyle.VOYAGER) FontFamily.Serif else null,
                     )
                     Spacer(Modifier.height(14.dp))
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .height(0.5.dp)
-                            .background(if (style == JzStyle.VOYAGER) scheme.outline else cardText.copy(alpha = 0.25f)),
+                            .background(cardText.copy(alpha = 0.25f)),
                     )
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -250,7 +249,7 @@ fun HomeTab(
         }
 
         // ── 预算区（总预算仪表 + 分类/周期预算条） ──
-        item(key = "budget") {
+        if (!voyager) item(key = "budget") {
             BudgetCard(
                 budgets = budgets,
                 budgetTxs = budgetTxs,
@@ -268,9 +267,10 @@ fun HomeTab(
             ) {
                 Text(
                     "最近交易",
-                    fontSize = 15.sp,
+                    fontFamily = if (voyager) FontFamily.Serif else null,
+                    fontSize = if (voyager) 20.sp else 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).then(if (voyager) Modifier.semantics { heading() } else Modifier),
                 )
                 Text(
                     "全部 ›",
@@ -284,8 +284,10 @@ fun HomeTab(
             item(key = "recent_empty") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
+                    shape = if (voyager) RectangleShape else MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().then(
+                        if (voyager) Modifier else Modifier.padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
+                    ),
                 ) {
                     EmptyState("还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
                 }
@@ -294,8 +296,10 @@ fun HomeTab(
             item(key = "recent_card") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
+                    shape = if (voyager) RectangleShape else MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().then(
+                        if (voyager) Modifier else Modifier.padding(horizontal = 16.dp).shadow(3.dp, MaterialTheme.shapes.large),
+                    ),
                 ) {
                     Column {
                         recent.forEachIndexed { i, tx ->
@@ -311,6 +315,16 @@ fun HomeTab(
                     }
                 }
             }
+        }
+        // ── 预算区（总预算仪表 + 分类/周期预算条） ──
+        if (voyager) item(key = "budget") {
+            BudgetCard(
+                budgets = budgets,
+                budgetTxs = budgetTxs,
+                monthLabel = monthLabel,
+                onClick = onOpenBudgets,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
         }
     }
 }
@@ -332,25 +346,108 @@ private fun formatDay(millis: Long): String {
     }
 }
 
+private val VoyagerNight = Color(0xFF17182D)
+internal val VoyagerGold = Color(0xFFE5C38A)
+internal val VoyagerIvory = Color(0xFFF6F0FC)
+
 @Composable
-private fun VoyagerMark(tint: Color) {
-    Canvas(Modifier.size(40.dp)) {
-        val stroke = Stroke(0.75.dp.toPx())
-        drawCircle(tint.copy(alpha = 0.68f), size.minDimension * 0.48f, style = stroke)
-        drawCircle(tint.copy(alpha = 0.42f), size.minDimension * 0.38f, style = stroke)
-        val x = center.x
-        val y = center.y
-        val r = size.minDimension * 0.29f
-        val inset = r * 0.16f
+private fun VoyagerHomeHeader(period: String, income: Long, expense: Long) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clipToBounds()
+                .background(Brush.horizontalGradient(listOf(VoyagerNight, Color(0xFF303051)))),
+        ) {
+            VoyagerRecord(Modifier.matchParentSize())
+            Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 28.dp)) {
+                Text(
+                    "Voyager",
+                    modifier = Modifier.semantics { heading() },
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 34.sp,
+                    color = VoyagerIvory,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(period, color = VoyagerGold, fontSize = 13.sp)
+                Spacer(Modifier.height(30.dp))
+                Text("本月结余", color = VoyagerGold, fontSize = 13.sp)
+                val balance = income - expense
+                Text(
+                    if (balance < 0) "-${fmtCents(balance)}" else fmtCents(balance),
+                    fontSize = 42.sp,
+                    color = VoyagerIvory,
+                    fontFamily = FontFamily.Serif,
+                )
+            }
+        }
+        val scheme = MaterialTheme.colorScheme
+        Surface(color = scheme.surfaceVariant, contentColor = scheme.onSurface) {
+            Column {
+                VoyagerCashFlow(income, expense)
+                HorizontalDivider(color = scheme.outlineVariant)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun VoyagerCashFlow(income: Long, expense: Long) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
+        val scale = LocalDensity.current.fontScale
+        if (maxWidth < (244 * scale).dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                VoyagerTotal("本月收入", income)
+                VoyagerTotal("本月支出", expense)
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                VoyagerTotal("本月收入", income, Modifier.weight(1f))
+                VoyagerTotal("本月支出", expense, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoyagerTotal(label: String, cents: Long, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(3.dp))
+        Text(fmtCents(cents), fontFamily = FontFamily.Serif, fontSize = 20.sp)
+    }
+}
+
+@Composable
+internal fun VoyagerRecord(modifier: Modifier) {
+    Canvas(modifier) {
+        val spindle = Offset(size.width * 0.91f, size.height * 0.34f)
+        val radius = minOf(size.height * 0.72f, size.width * 0.38f).coerceAtLeast(1f)
+        drawCircle(Color(0xFF1A192F), radius, spindle)
+        drawCircle(
+            Brush.radialGradient(listOf(Color(0xFF454065), Color(0xFF25233D)), spindle, radius),
+            radius, spindle,
+        )
+        for (groove in 0..7) {
+            drawCircle(
+                Color(0xFFB2A3D4).copy(alpha = if (groove % 3 == 0) 0.25f else 0.12f),
+                radius * (0.98f - groove * 0.093f), spindle, style = Stroke(0.7.dp.toPx()),
+            )
+        }
+        drawCircle(VoyagerGold.copy(alpha = 0.6f), radius * 0.21f, spindle, style = Stroke(0.8.dp.toPx()))
+        val tip = radius * 0.15f
+        val inset = tip * 0.18f
+        val (x, y) = spindle
         val star = Path().apply {
-            moveTo(x, y - r)
-            quadraticTo(x + inset, y - inset, x + r, y)
-            quadraticTo(x + inset, y + inset, x, y + r)
-            quadraticTo(x - inset, y + inset, x - r, y)
-            quadraticTo(x - inset, y - inset, x, y - r)
+            moveTo(x, y - tip)
+            quadraticTo(x + inset, y - inset, x + tip, y)
+            quadraticTo(x + inset, y + inset, x, y + tip)
+            quadraticTo(x - inset, y + inset, x - tip, y)
+            quadraticTo(x - inset, y - inset, x, y - tip)
             close()
         }
-        drawPath(star, tint)
+        drawPath(star, VoyagerGold)
     }
 }
 

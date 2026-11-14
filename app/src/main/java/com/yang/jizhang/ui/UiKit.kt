@@ -4,6 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -16,19 +19,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import kotlin.math.roundToLong
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,12 +46,14 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -210,10 +221,7 @@ fun StatusBanner(
 
 // ── 交易行（明细/最近列表通用） ──
 
-/**
- * 交易行。onDelete 非空时支持左滑删除（v3.3.0 交互）。
- */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/** 左滑仅露出删除操作，右滑收起。按账单 ID 隔离手势状态。 */
 @Composable
 fun TxRow(
     tx: TxEntity,
@@ -221,50 +229,53 @@ fun TxRow(
     onClick: () -> Unit,
     subLabel: String = "${tx.category} · ${tx.source}",
     onDelete: (() -> Unit)? = null,
-) {
+) = key(tx.id) {
+    val actionWidth = 80.dp
+    val density = LocalDensity.current
+    val limit = with(density) { actionWidth.toPx() }
+    val fling = with(density) { 500.dp.toPx() }
+    var revealed by remember { mutableFloatStateOf(0f) }
     Column {
-        if (onDelete != null) {
-            val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
-                confirmValueChange = { value ->
-                    if (value == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) {
-                        onDelete()
-                        true
-                    } else false
-                },
-            )
-            androidx.compose.material3.SwipeToDismissBox(
-                state = dismissState,
-                modifier = Modifier.clipToBounds(),
-                enableDismissFromStartToEnd = false,
-                backgroundContent = {
-                    Row(
-                        Modifier
-                            .fillMaxSize()
-                            .background(expenseColor().copy(alpha = 0.14f))
-                            .padding(end = 20.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("删除", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = expenseColor())
-                    }
-                },
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable(onClick = onClick)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+        Box(Modifier.fillMaxWidth().clipToBounds()) {
+            if (onDelete != null && revealed > 0f) {
+                Box(
+                    Modifier.align(Alignment.CenterEnd).matchParentSize()
+                        .background(expenseColor().copy(alpha = 0.13f)),
+                )
+                Box(
+                    Modifier.align(Alignment.CenterEnd).width(actionWidth).height(48.dp)
+                        .clickable(role = Role.Button) {
+                            revealed = 0f
+                            onDelete()
+                        },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    TxRowContent(tx, subLabel)
+                    Text("删除", color = expenseColor(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-        } else {
+            val drag = if (onDelete != null) {
+                Modifier.draggable(
+                    state = rememberDraggableState { delta -> revealed = (revealed - delta).coerceIn(0f, limit) },
+                    orientation = Orientation.Horizontal,
+                    reverseDirection = androidx.compose.ui.platform.LocalLayoutDirection.current ==
+                        androidx.compose.ui.unit.LayoutDirection.Rtl,
+                    onDragStopped = { velocity ->
+                        val threshold = limit / 2f
+                        revealed = when {
+                            velocity > fling -> 0f
+                            velocity < -fling -> limit
+                            revealed >= threshold -> limit
+                            else -> 0f
+                        }
+                    },
+                )
+            } else Modifier
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onClick)
+                Modifier.fillMaxWidth()
+                    .offset { IntOffset(-revealed.roundToInt(), 0) }
+                    .then(drag)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable { if (revealed > 0f) revealed = 0f else onClick() }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -273,10 +284,7 @@ fun TxRow(
         }
         if (showDivider) {
             Box(
-                Modifier
-                    .padding(start = 68.dp)
-                    .fillMaxWidth()
-                    .height(0.5.dp)
+                Modifier.padding(start = 68.dp).fillMaxWidth().height(0.5.dp)
                     .background(MaterialTheme.colorScheme.outline),
             )
         }
@@ -327,6 +335,18 @@ fun EmptyState(title: String, hint: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    if (LocalJzStyle.current == JzStyle.VOYAGER) {
+        Row(
+            modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text, style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface)
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outline)
+        }
+        return
+    }
     Text(
         text,
         fontSize = 13.sp,
@@ -367,7 +387,7 @@ fun AnimatedAmountText(
         animated.value
     }
     Text(
-        fmtCents(shown),
+        if (shown < 0) "-${fmtCents(shown)}" else fmtCents(shown),
         fontSize = fontSize,
         fontWeight = fontWeight,
         fontFamily = fontFamily,
@@ -381,7 +401,7 @@ fun AnimatedAmountText(
 
 /**
  * 某月按日支出热力（v4.3.0 改正宗 GitHub 贡献图形式）：
- * 横向周列排布（每列一周，周一行首），主题色 5 档色阶方块，今日描边。
+ * 每行一周，圆形日期按支出金额分色，今日描边。
  */
 @Composable
 fun ExpenseCalendar(
@@ -413,50 +433,43 @@ fun ExpenseCalendar(
         spend == null || spend <= 0 -> faint.copy(alpha = 0.45f)
         spend <= maxSpend / 4 -> accent.copy(alpha = 0.30f)
         spend <= maxSpend / 2 -> accent.copy(alpha = 0.55f)
-        spend <= maxSpend * 3 / 4 -> accent.copy(alpha = 0.80f)
+        spend <= maxSpend - maxSpend / 4 -> accent.copy(alpha = 0.80f)
         else -> accent
     }
 
     Column(modifier) {
-        // 横向周列：左侧周标签 + 每周一方块列（GitHub 贡献图布局）
-        Row(Modifier.fillMaxWidth()) {
-            // 周标签列（紧凑，只标一/三/五）
-            Column(Modifier.padding(end = 6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                listOf("一", "", "三", "", "五", "", "日").forEach {
-                    Text(
-                        it,
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.height(13.dp).wrapContentWidth(),
-                    )
-                }
+        val days = listOf("一", "二", "三", "四", "五", "六", "日")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            days.forEach {
+                Text(it, fontSize = 11.sp, textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
             }
-            // 周列（横向排布、等宽拉伸）
-            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                weeks.forEach { week ->
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        week.forEach { day ->
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(2.5.dp))
-                                    .background(
-                                        if (day == null) androidx.compose.ui.graphics.Color.Transparent
-                                        else levelColor(daySpend[day])
-                                    )
-                                    .then(
-                                        if (isCurrentMonth && day == todayDay) {
-                                            Modifier.border(1.5.dp, accent, RoundedCornerShape(2.5.dp))
-                                        } else Modifier
-                                    ),
-                            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            weeks.forEach { week ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    week.forEach { day ->
+                        val spend = daySpend[day] ?: 0L
+                        val color = if (day == null) Color.Transparent else levelColor(spend)
+                        val onColor = if (spend > 0L) readableOn(color.compositeOver(MaterialTheme.colorScheme.surface))
+                            else MaterialTheme.colorScheme.onSurface
+                        Box(
+                            Modifier.weight(1f).aspectRatio(1f).clip(CircleShape).background(color)
+                                .then(if (day != null && isCurrentMonth && day == todayDay) {
+                                    Modifier.border(1.5.dp, accent, CircleShape)
+                                } else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (day != null) {
+                                Text(day.toString(), color = onColor, fontSize = 11.sp, maxLines = 1)
+                            }
                         }
                     }
                 }
             }
         }
-        // 图例（GitHub 同款 少 □□□□ 多）
+        // 支出色阶图例
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.End,
@@ -469,7 +482,7 @@ fun ExpenseCalendar(
                     Modifier
                         .padding(horizontal = 1.5.dp)
                         .size(9.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .clip(CircleShape)
                         .background(
                             if (i == 0) faint.copy(alpha = 0.45f)
                             else accent.copy(alpha = a)
@@ -500,49 +513,59 @@ private fun buildCalendarGrid(year: Int, month1: Int): List<List<Int?>> {
 
 data class ChartEntry(val label: String, val value: Double, val color: Color)
 
-/** 柱状图：圆角柱 + 月份标签，当前期满色、其余降透明；出现/数据变化时柱子生长动画（v3.3.0） */
+/** 趋势图保留分为单位的原始金额；每列都是可访问的选择项。 */
 @Composable
-fun BarChart(
-    data: List<ChartEntry>,
+internal fun ExpenseTrend(
+    periods: List<Pair<String, Long>>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    annual: Boolean = false,
 ) {
-    val sub = MaterialTheme.colorScheme.onSurfaceVariant
-    val axis = MaterialTheme.colorScheme.outline
-    val measurer = rememberTextMeasurer()
-    // 标签布局结果缓存（v3.9.0：避免动画每帧重复 measure）
-    val labels = remember(data) { data.map { measurer.measure(it.label, TextStyle(fontSize = 11.sp, color = sub)) } }
-    val grow = if (LocalPowerSaving.current) null else {
-        val animation = remember { Animatable(0f) }
-        androidx.compose.runtime.LaunchedEffect(data) {
-            animation.snapTo(0f)
-            animation.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
-        }
-        animation
-    }
-    Canvas(modifier) {
-        if (data.isEmpty()) return@Canvas
-        val maxV = data.maxOf { it.value }.coerceAtLeast(1.0)
-        val labelH = 22f
-        val chartH = size.height - labelH
-        val gap = 14f
-        val barW = (size.width - gap * (data.size + 1)) / data.size
-        // 基线
-        drawLine(axis, Offset(0f, chartH), Offset(size.width, chartH), 1.5f)
-        data.forEachIndexed { i, e ->
-            val hRatio = (e.value / maxV).toFloat() * (grow?.value ?: 1f)
-            val barH = (chartH - 26f) * hRatio
-            val x = gap + i * (barW + gap)
-            drawRoundRect(
-                color = e.color,
-                topLeft = Offset(x, chartH - barH),
-                size = Size(barW, barH.coerceAtLeast(if (e.value > 0) 6f else 2f)),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2.4f, barW / 2.4f),
-            )
-            val label = labels[i]
-            drawText(
-                label,
-                topLeft = Offset(x + (barW - label.size.width) / 2, chartH + 8f),
-            )
+    val active = periods.getOrNull(selectedIndex) ?: return
+    val scheme = MaterialTheme.colorScheme
+    val archive = LocalJzStyle.current == JzStyle.VOYAGER
+    val max = (periods.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+    Column(modifier) {
+        val period = if (annual) "${active.first} 年" else active.first
+        Text("${period}支出", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        Text(
+            fmtCents(active.second),
+            fontSize = 27.sp,
+            fontFamily = if (archive) androidx.compose.ui.text.font.FontFamily.Serif else null,
+            fontWeight = FontWeight.SemiBold,
+            color = scheme.onSurface,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            periods.forEachIndexed { index, (label, cents) ->
+                val selected = index == selectedIndex
+                Column(
+                    Modifier.weight(1f).clip(MaterialTheme.shapes.small)
+                        .background(if (selected) scheme.primaryContainer else Color.Transparent)
+                        .selectable(selected = selected, role = Role.RadioButton) { onSelect(index) }
+                        .padding(horizontal = 3.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        label,
+                        color = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                    Box(Modifier.fillMaxWidth().height(92.dp), contentAlignment = Alignment.BottomCenter) {
+                        val fraction = (cents.toDouble() / max).toFloat().coerceIn(0f, 1f)
+                        Box(
+                            Modifier.fillMaxWidth(0.56f)
+                                .height(if (cents > 0L) (84 * fraction).coerceAtLeast(4f).dp else 2.dp)
+                                .background(
+                                    scheme.primary.copy(alpha = if (selected) 1f else 0.42f),
+                                    if (archive) RoundedCornerShape(3.dp) else CircleShape,
+                                ),
+                        )
+                    }
+                }
+            }
         }
     }
 }

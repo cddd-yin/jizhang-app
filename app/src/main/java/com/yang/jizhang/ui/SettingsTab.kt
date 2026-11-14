@@ -66,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -79,6 +80,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.yang.jizhang.engine.BillImporter
+import com.yang.jizhang.engine.keepalive.GuardianService
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -110,6 +112,7 @@ internal fun SettingsTab(
     var showCategoryManage by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
+    var foregroundGuardian by remember { mutableStateOf(GuardianService.isEnabled(context)) }
     var listenerEnabled by remember { mutableStateOf(ListenerHealth.isEnabledInSettings(context)) }
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
     var batteryIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
@@ -235,12 +238,31 @@ internal fun SettingsTab(
             GuideItem(
                 icon = Icons.Outlined.Notifications,
                 title = "发送通知（推荐）",
-                description = "显示「已记一笔」和待确认账单通知（Android 13+ 必须）",
+                description = "显示「已记一笔」和待确认提醒（Android 13+ 需授权）",
                 granted = postNotificationsGranted,
             ) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
+            }
+            CardDivider()
+            Row(
+                Modifier.fillMaxWidth().toggleable(foregroundGuardian, role = Role.Switch) {
+                    foregroundGuardian = it
+                    GuardianService.setEnabled(context, it)
+                }.padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("额外后台保活", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "默认关闭。开启会显示常驻通知，可用于支付监听经常断开时。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = foregroundGuardian, onCheckedChange = null)
             }
             CardDivider()
             GuideItem(
@@ -564,6 +586,23 @@ private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Mo
 
 @Composable
 private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.ColorScheme) {
+    if (style == JzStyle.VOYAGER) {
+        Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)) {
+            Box(
+                Modifier.fillMaxWidth().height(40.dp).clipToBounds().background(Color(0xFF262641)),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                VoyagerRecord(Modifier.matchParentSize())
+                Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.fillMaxWidth(0.31f).height(3.dp).background(VoyagerGold))
+                    Box(Modifier.fillMaxWidth(0.45f).height(5.dp).background(VoyagerIvory))
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(8.dp).background(scheme.surfaceVariant))
+            Box(Modifier.fillMaxWidth().height(7.dp).background(scheme.surface))
+        }
+        return
+    }
     val flat = style.usesFlatBalance
     val nav = RoundedCornerShape((style.navRadius / 2).dp)
     Column(

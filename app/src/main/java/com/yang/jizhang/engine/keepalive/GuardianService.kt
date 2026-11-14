@@ -25,8 +25,11 @@ class GuardianService : Service() {
 
     private val patrol = object : Runnable {
         override fun run() {
-            val next = patrolOnce()
-            handler.postDelayed(this, next)
+            if (!isEnabled(this@GuardianService) || !ListenerHealth.isEnabledInSettings(this@GuardianService)) {
+                stopSelf()
+                return
+            }
+            handler.postDelayed(this, patrolOnce())
         }
     }
 
@@ -36,8 +39,12 @@ class GuardianService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!isEnabled(this) || !ListenerHealth.isEnabledInSettings(this)) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         promoteForeground(ListenerHealth.displayState(this))
-        if (ListenerHealth.isEnabledInSettings(this) && !ListenerHealth.isBinderConnected()) {
+        if (!ListenerHealth.isBinderConnected()) {
             ListenerHealth.requestRebind(this)
         }
         WatchdogScheduler.schedule(this)
@@ -48,6 +55,7 @@ class GuardianService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(patrol)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         WatchdogScheduler.schedule(this)
         super.onDestroy()
     }
@@ -99,7 +107,7 @@ class GuardianService : Service() {
             ListenerHealth.DisplayState.NEED_PERMISSION -> "自动记账已暂停：需重新开启通知使用权"
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(
                     ChannelIds.ID_GUARDIAN_FG,
                     ChannelIds.guardian(this, text),
@@ -118,10 +126,25 @@ class GuardianService : Service() {
         private const val FAST_MS = 12_000L
         private const val SLOW_MS = 5 * 60_000L
 
+        private const val KEEP_ALIVE_KEY = "foreground_guardian_enabled"
+
+        fun isEnabled(context: Context): Boolean =
+            context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+                .getBoolean(KEEP_ALIVE_KEY, false)
+
+        fun setEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+                .edit().putBoolean(KEEP_ALIVE_KEY, enabled).apply()
+            if (enabled) start(context) else stop(context)
+        }
+
         fun start(context: Context) {
-            context.applicationContext.startForegroundService(
-                Intent(context, GuardianService::class.java)
-            )
+            if (!isEnabled(context) || !ListenerHealth.isEnabledInSettings(context)) return
+            try {
+                context.applicationContext.startForegroundService(Intent(context, GuardianService::class.java))
+            } catch (e: IllegalStateException) {
+                Log.w("Guardian", "foreground start deferred", e)
+            }
         }
 
         fun stop(context: Context) {
