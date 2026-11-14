@@ -558,7 +558,7 @@ private fun JzBottomBar(
     Surface(
         color = if (blur) scheme.surface.copy(alpha = 0.78f) else scheme.surface,
         shape = shape,
-        border = if (floating || style == JzStyle.PAPER || style == JzStyle.INK)
+        border = if (floating || style.usesFlatBalance)
             BorderStroke(1.dp, scheme.outlineVariant) else null,
         shadowElevation = if (floating) 5.dp else 0.dp,
         modifier = Modifier.fillMaxWidth().then(frame),

@@ -1,5 +1,6 @@
 package com.yang.jizhang.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,8 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -108,14 +112,27 @@ fun HomeTab(
         ),
     ) {
         item(key = "header") {
-            Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-                PageTitle("账本")
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "$monthLabel · 花完钱自动记账",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            val voyager = LocalJzStyle.current == JzStyle.VOYAGER
+            val scheme = MaterialTheme.colorScheme
+            Column(
+                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        PageTitle("账本")
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            if (voyager) monthLabel else "$monthLabel · 花完钱自动记账",
+                            fontSize = 13.sp,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                    if (voyager) VoyagerMark(scheme.primary)
+                }
+                if (voyager) {
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(color = scheme.outline)
+                }
             }
         }
 
@@ -164,7 +181,7 @@ fun HomeTab(
             val scheme = MaterialTheme.colorScheme
             val accent = scheme.primary
             val onAccent = scheme.onPrimary
-            val flat = style == JzStyle.PAPER || style == JzStyle.INK
+            val flat = style.usesFlatBalance
             val cardText = if (flat) scheme.onSurface else onAccent
             val shadow = if (flat) 0.dp else 8.dp
             Surface(
@@ -194,13 +211,14 @@ fun HomeTab(
                         cents = balance,
                         fontSize = if (style == JzStyle.ORIGIN_OS) 42.sp else 36.sp,
                         color = cardText,
+                        fontFamily = if (style == JzStyle.VOYAGER) FontFamily.Serif else null,
                     )
                     Spacer(Modifier.height(14.dp))
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .height(0.5.dp)
-                            .background(cardText.copy(alpha = 0.25f)),
+                            .background(if (style == JzStyle.VOYAGER) scheme.outline else cardText.copy(alpha = 0.25f)),
                     )
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,6 +329,28 @@ private fun formatDay(millis: Long): String {
             "%02d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
         else -> "%d月%d日".format(cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH)) +
             " %02d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+    }
+}
+
+@Composable
+private fun VoyagerMark(tint: Color) {
+    Canvas(Modifier.size(40.dp)) {
+        val stroke = Stroke(0.75.dp.toPx())
+        drawCircle(tint.copy(alpha = 0.68f), size.minDimension * 0.48f, style = stroke)
+        drawCircle(tint.copy(alpha = 0.42f), size.minDimension * 0.38f, style = stroke)
+        val x = center.x
+        val y = center.y
+        val r = size.minDimension * 0.29f
+        val inset = r * 0.16f
+        val star = Path().apply {
+            moveTo(x, y - r)
+            quadraticTo(x + inset, y - inset, x + r, y)
+            quadraticTo(x + inset, y + inset, x, y + r)
+            quadraticTo(x - inset, y + inset, x - r, y)
+            quadraticTo(x - inset, y - inset, x, y - r)
+            close()
+        }
+        drawPath(star, tint)
     }
 }
 

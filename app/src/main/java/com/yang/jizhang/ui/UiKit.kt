@@ -346,6 +346,7 @@ fun AnimatedAmountText(
     fontWeight: FontWeight = FontWeight.SemiBold,
     letterSpacing: androidx.compose.ui.unit.TextUnit = (-0.5).sp,
     color: Color = MaterialTheme.colorScheme.onSurface,
+    fontFamily: androidx.compose.ui.text.font.FontFamily? = null,
 ) {
     // 分→显示值的 Long 转换器（animation-core 无内置 Long converter）
     val centsConverter = remember {
@@ -369,6 +370,7 @@ fun AnimatedAmountText(
         fmtCents(shown),
         fontSize = fontSize,
         fontWeight = fontWeight,
+        fontFamily = fontFamily,
         letterSpacing = letterSpacing,
         color = color,
         modifier = modifier,

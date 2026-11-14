@@ -564,7 +564,7 @@ private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Mo
 
 @Composable
 private fun StyleThumbnail(style: JzStyle, scheme: androidx.compose.material3.ColorScheme) {
-    val flat = style == JzStyle.PAPER || style == JzStyle.INK
+    val flat = style.usesFlatBalance
     val nav = RoundedCornerShape((style.navRadius / 2).dp)
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)

@@ -52,6 +52,7 @@ fun StatsTab(
     onMonthChange: (Int, Int) -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf("month") }
+    val chartPalette = chartColors()
     val isYear = mode == "year"
 
     // ── 月模式数据 ──
@@ -389,7 +390,7 @@ fun StatsTab(
             item(key = "pie_card") {
                 val incomeTotalView = incomeTop.sumOf { it.second }
                 val pieData = incomeTop.mapIndexed { i, (cat, cents, _) ->
-                    ChartEntry(cat, cents.toDouble(), JzChartColors[i % JzChartColors.size])
+                    ChartEntry(cat, cents.toDouble(), chartPalette[i % chartPalette.size])
                 }
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -414,7 +415,7 @@ fun StatsTab(
                                         Modifier
                                             .size(10.dp)
                                             .clip(RoundedCornerShape(3.dp))
-                                            .background(JzChartColors[i % JzChartColors.size]),
+                                            .background(chartPalette[i % chartPalette.size]),
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(cat, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))

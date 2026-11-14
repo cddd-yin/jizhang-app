@@ -64,6 +64,8 @@ enum class JzStyle(
     internal val blurRadius: Int = 0,
     internal val indicator: TabIndicator = TabIndicator.PILL,
 ) {
+    VOYAGER("Voyager", "档案纸、黄铜细线和唱片式页眉", shapeSet(2, 4, 6, 8, 12),
+        titleSize = 30, navRadius = 0, navHeight = 60, indicator = TabIndicator.UNDERLINE),
     GLASS("玻璃", "大圆角卡片和磨砂底栏", shapeSet(8, 12, 16, 22, 28), blurRadius = 22),
     COMPACT("紧凑", "小圆角卡片和实底底栏", shapeSet(6, 8, 12, 14, 18)),
     IOS("苹果 iOS", "大标题、分组卡片和悬浮磨砂底栏", shapeSet(9, 12, 16, 20, 28),
@@ -126,9 +128,9 @@ object ThemePrefs {
         runCatching {
             JzStyle.valueOf(
                 context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
-                    .getString(KEY_STYLE, null) ?: JzStyle.GLASS.name
+                    .getString(KEY_STYLE, null) ?: JzStyle.VOYAGER.name
             )
-        }.getOrDefault(JzStyle.GLASS)
+        }.getOrDefault(JzStyle.VOYAGER)
 
     /** 自定义种子色（ARGB），未设置返回 null */
     fun customSeed(context: Context): Int? =
@@ -172,6 +174,15 @@ val JzChartColors = listOf(
     Color(0xFFA78BFA), // 亮紫
 )
 
+private val VoyagerChartColors = listOf(
+    Color(0xFF8274AA), Color(0xFFBD955C), Color(0xFF68849E),
+    Color(0xFF9D6F84), Color(0xFF698777), Color(0xFFAF8067),
+)
+
+@Composable
+internal fun chartColors(): List<Color> =
+    if (LocalJzStyle.current == JzStyle.VOYAGER) VoyagerChartColors else JzChartColors
+
 private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: Long, border: Long) {
     val page = Color(page)
     val card = Color(card)
@@ -181,6 +192,8 @@ private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: L
     val border = Color(border)
 }
 
+private val voyagerLight = Surfaces(0xFFEDE7D9, 0xFFF9F3E6, 0xFFE3DAC8, 0xFF292638, 0xFF625849, 0xFFB6A080)
+private val voyagerDark = Surfaces(0xFF191827, 0xFF25243C, 0xFF33304B, 0xFFF3E9D5, 0xFFC2B7CC, 0xFF685644)
 private val neutralLight = Surfaces(0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF404040, 0xFF666666, 0xFFE6E6E6)
 private val neutralDark = Surfaces(0xFF171717, 0xFF262626, 0xFF303030, 0xFFE5E5E5, 0xFFA1A1A1, 0xFF2E2E2E)
 private val iosLight = Surfaces(0xFFF2F2F7, 0xFFFFFFFF, 0xFFE8E8ED, 0xFF17171B, 0xFF606068, 0xFFDADAE0)
@@ -193,6 +206,7 @@ private val inkLight = Surfaces(0xFFF1F1F1, 0xFFFFFFFF, 0xFFE5E5E5, 0xFF111111, 
 private val inkDark = Surfaces(0xFF000000, 0xFF0D0D0D, 0xFF1C1C1C, 0xFFF5F5F5, 0xFFB4B4B4, 0xFF363636)
 
 private fun JzStyle.surfaces(dark: Boolean): Surfaces = when (this) {
+    JzStyle.VOYAGER -> if (dark) voyagerDark else voyagerLight
     JzStyle.IOS -> if (dark) iosDark else iosLight
     JzStyle.ORIGIN_OS -> if (dark) originDark else originLight
     JzStyle.PAPER -> if (dark) paperDark else paperLight
@@ -201,6 +215,7 @@ private fun JzStyle.surfaces(dark: Boolean): Surfaces = when (this) {
 }
 
 internal fun JzStyle.defaultAccent(dark: Boolean): Color = when (this) {
+    JzStyle.VOYAGER -> if (dark) Color(0xFFDEC393) else Color(0xFF725025)
     JzStyle.IOS -> if (dark) Color(0xFF459EFF) else Color(0xFF0063CE)
     JzStyle.ORIGIN_OS -> if (dark) Color(0xFF91B1FF) else Color(0xFF3159CD)
     JzStyle.PAPER -> if (dark) Color(0xFFF0B28A) else Color(0xFF8C3D26)
@@ -239,7 +254,7 @@ internal fun styleColors(style: JzStyle, dark: Boolean, accent: Color): ColorSch
         surfaceTint = accent,
         outline = palette.border,
         outlineVariant = palette.border,
-        error = if (dark) ExpenseDark else ExpenseLight,
+        error = if (dark) ExpenseDark else if (style == JzStyle.VOYAGER) VoyagerExpenseLight else ExpenseLight,
         onError = Color.White,
         errorContainer = if (dark) Color(0xFF3B1A1C) else Color(0xFFFDE9E9),
         onErrorContainer = if (dark) Color(0xFFFFD9D9) else Color(0xFF7F1D1D),
@@ -271,6 +286,9 @@ val JzTypography = Typography(
     labelSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 10.sp),
 )
 
+internal val JzStyle.usesFlatBalance: Boolean
+    get() = this == JzStyle.VOYAGER || this == JzStyle.PAPER || this == JzStyle.INK
+
 internal val LocalJzStyle = androidx.compose.runtime.staticCompositionLocalOf { JzStyle.GLASS }
 
 @Composable
@@ -279,6 +297,7 @@ internal fun PageTitle(text: String, modifier: androidx.compose.ui.Modifier = an
     androidx.compose.material3.Text(
         text,
         modifier = modifier,
+        fontFamily = if (style == JzStyle.VOYAGER) FontFamily.Serif else null,
         fontSize = style.titleSize.sp,
         fontWeight = style.titleWeight,
         letterSpacing = (-0.3).sp,
@@ -288,11 +307,22 @@ internal fun PageTitle(text: String, modifier: androidx.compose.ui.Modifier = an
 /** 实际生效的深浅模式（强制浅/深色时与系统不一致，语义色据此取值） */
 val LocalJzDark = androidx.compose.runtime.staticCompositionLocalOf { true }
 
-@Composable
-fun incomeColor(): Color = if (LocalJzDark.current) IncomeDark else IncomeLight
+private val VoyagerIncomeLight = Color(0xFF08613E)
+private val VoyagerExpenseLight = Color(0xFF9D2733)
 
 @Composable
-fun expenseColor(): Color = if (LocalJzDark.current) ExpenseDark else ExpenseLight
+fun incomeColor(): Color = when {
+    LocalJzDark.current -> IncomeDark
+    LocalJzStyle.current == JzStyle.VOYAGER -> VoyagerIncomeLight
+    else -> IncomeLight
+}
+
+@Composable
+fun expenseColor(): Color = when {
+    LocalJzDark.current -> ExpenseDark
+    LocalJzStyle.current == JzStyle.VOYAGER -> VoyagerExpenseLight
+    else -> ExpenseLight
+}
 
 @Composable
 fun warnColor(): Color = if (LocalJzDark.current) WarnDark else WarnLight
@@ -305,7 +335,7 @@ fun accentColor(): Color = MaterialTheme.colorScheme.primary
 fun JizhangTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     preset: JzPreset = JzPreset.STYLE,
-    style: JzStyle = JzStyle.GLASS,
+    style: JzStyle = JzStyle.VOYAGER,
     customSeed: Int? = null,
     powerSaving: Boolean = false,
     content: @Composable () -> Unit,
