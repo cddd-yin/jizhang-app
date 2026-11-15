@@ -1,6 +1,7 @@
 package com.yang.jizhang.util
 
 import android.content.Context
+import com.yang.jizhang.CategoryRules
 import org.json.JSONObject
 import java.util.LinkedHashMap
 
@@ -44,7 +45,7 @@ object CategoryLearner {
     /** 学习一条映射；商户为空/过短/泛化词/含金额符号时不学 */
     fun learn(context: Context, merchant: String?, category: String) {
         val m = merchant?.trim() ?: return
-        if (m.length < MIN_MERCHANT_LEN || m in GENERIC_NOTES) return
+        if (m.length < MIN_MERCHANT_LEN || m in GENERIC_NOTES || CategoryRules.isPlatformMerchant(m)) return
         if (m.contains("¥") || m.contains("￥") || Regex("""\d{3,}""").containsMatchIn(m)) return
         val ctx = context.applicationContext
         val map = load(ctx)
@@ -59,12 +60,12 @@ object CategoryLearner {
     /** 查映射：先精确，再包含（key 被商户文本包含） */
     fun hint(context: Context, merchant: String?): String? {
         val m = merchant?.trim() ?: return null
-        if (m.length < MIN_MERCHANT_LEN) return null
+        if (m.length < MIN_MERCHANT_LEN || CategoryRules.isPlatformMerchant(m)) return null
         val map = load(context.applicationContext)
         map[m]?.let { return it }
         // 包含匹配取最长 key（更具体优先）
         return map.entries
-            .filter { m.contains(it.key) }
+            .filter { m.contains(it.key) && !CategoryRules.isPlatformMerchant(it.key) }
             .maxByOrNull { it.key.length }
             ?.value
     }

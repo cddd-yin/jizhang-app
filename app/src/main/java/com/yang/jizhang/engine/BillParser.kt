@@ -22,6 +22,7 @@ object BillParser {
         val reviewReason: String?,
         val fingerprint: String,
         val rawSnippet: String?,
+        val classificationDetails: String = "",
     )
 
     /** 一条金额线索 */
@@ -181,6 +182,7 @@ object BillParser {
             reviewReason = if (confidence < 0.7f) (reason ?: "识别置信度低") else null,
             fingerprint = "${channel.name}|$isIncome|${hit.cents}|$merchant",
             rawSnippet = full.take(60),
+            classificationDetails = full.take(512),
         )
     }
 

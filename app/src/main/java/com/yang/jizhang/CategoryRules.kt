@@ -10,7 +10,7 @@ object CategoryRules {
         // ═══ 餐饮 ═══
         listOf(
             "麦当劳", "肯德基", "KFC", "星巴克", "瑞幸", "喜茶", "奈雪",
-            "饿了么", "外卖", "餐饮", "餐厅", "饭店", "食堂",
+            "外卖", "餐饮", "餐厅", "饭店", "食堂",
             "奶茶", "咖啡", "蛋糕", "面包", "烧烤", "火锅", "小吃",
             "必胜客", "汉堡王", "海底捞", "西贝", "呷哺", "真功夫",
             "蜜雪冰城", "茶百道", "古茗", "沪上阿姨", "霸王茶姬", "面馆"
@@ -86,36 +86,82 @@ object CategoryRules {
     )
 
     private const val OTHER = "其他"
-    private val platforms = listOf("淘宝", "天猫", "京东", "拼多多", "得物", "闲鱼")
+    private val shoppingPlatforms = listOf("淘宝", "天猫", "拼多多", "得物", "闲鱼", "唯品会", "转转", "亚马逊")
+    private val multiServicePlatforms = listOf("美团", "大众点评", "饿了么", "淘宝闪购", "京东", "抖音", "快手", "高德", "携程", "飞猪")
+    private val serviceRules = listOf(
+        listOf("买药", "在线问诊", "处方药", "非处方药", "布洛芬", "感冒灵", "药品订单", "药房", "药店", "京东健康") to "医疗健康",
+        listOf("买菜", "美团闪购", "京东商城", "小象超市", "歪马送酒", "生鲜配送", "商超配送", "日用百货", "咖啡机", "咖啡滤纸",
+            "手机壳", "游戏手柄", "电饭煲", "洗衣液", "纸巾", "抽纸", "充电宝", "充电器", "洗发水") to "购物消费",
+        listOf("酒店预订", "酒店订单", "民宿预订", "酒店住宿", "客房", "保洁上门") to "居住住房",
+        listOf("打车订单", "网约车", "单车骑行", "美团单车", "骑行卡", "机票订单", "火车票", "高铁票") to "交通出行",
+        listOf("电影票", "演唱会门票", "景区门票", "电影购票") to "娱乐休闲",
+        listOf("外卖订单", "餐品", "堂食", "到店餐饮", "美团外卖", "饿了么外卖", "餐饮团购", "外卖") to "餐饮美食",
+        listOf("手机充值", "话费充值", "燃气缴费") to "生活缴费",
+    ).flatMap { (words, category) -> words.map { Rule(it, category) } }
+
     private val specificRules = RULES.flatMap { (words, category) ->
-        words.filterNot { it in platforms }.map { word ->
-            val value = word.lowercase(Locale.ROOT)
-            val match = if (value.all { it.isAsciiLetterOrDigit() || it == ' ' || it == '&' }) {
-                Regex("(?<![a-z0-9])${Regex.escape(value)}(?![a-z0-9])")
-            } else null
-            Rule(value, category, match)
+        words.filterNot { it in shoppingPlatforms || it in multiServicePlatforms }.map { word ->
+            Rule(word.lowercase(Locale.ROOT), category)
         }
-    }.sortedByDescending { it.word.length }
+    }
 
-    private data class Rule(val word: String, val category: String, val match: Regex?)
+    private data class Rule(val word: String, val category: String) {
+        private val asciiWord = if (word.all { it in 'a'..'z' || it in '0'..'9' || it == ' ' || it == '&' }) {
+            Regex("(?<![a-z0-9])" + Regex.escape(word) + "(?![a-z0-9])")
+        } else null
 
-    private fun Char.isAsciiLetterOrDigit() = this in 'a'..'z' || this in '0'..'9'
+        fun matches(text: String) = asciiWord?.containsMatchIn(text) ?: (word in text)
+    }
 
-    /** 先匹配消费内容和具体商户，电商渠道仅在无具体线索时兜底。 */
-    fun guess(vararg texts: String?, isIncome: Boolean? = null): String {
-        val joined = texts.filterNotNull().joinToString(" ").lowercase(Locale.ROOT)
-        val category = specificRules.firstOrNull { (word, category, match) ->
-            (match?.containsMatchIn(joined) ?: (word in joined)) && when (isIncome) {
-                true -> category == "收入进账" || category == "红包转账"
-                false -> category != "收入进账"
-                null -> true
-            }
-        }?.category
-        return category ?: when {
-            isIncome == true -> "收入进账"
-            platforms.any { it in joined } -> "购物消费"
-            else -> OTHER
+    /** 平台汇总商户无法代表单笔消费，不参与记忆（含之前已学习的记录）。 */
+    fun isPlatformMerchant(merchant: String): Boolean {
+        val cleaned = merchant.trim().replace(Regex("[（(](?:官方|平台|商户|收款)[）)]"), "").trim()
+        return (shoppingPlatforms + multiServicePlatforms).any { platform ->
+            cleaned == platform || (cleaned.startsWith(platform) &&
+                cleaned.removePrefix(platform) in setOf("平台", "支付", "收款", "官方", "订单", "订单支付", "官方旗舰店"))
+        } || cleaned in setOf("北京三快在线科技有限公司", "北京三快科技有限公司", "上海汉涛信息咨询有限公司")
+    }
+
+    fun guess(vararg texts: String?, isIncome: Boolean? = null): String =
+        classify(merchant = texts.firstOrNull(), details = texts.drop(1).filterNotNull().joinToString(" "), isIncome = isIncome)
+
+    fun classify(
+        merchant: String?,
+        details: String?,
+        channel: String? = null,
+        isIncome: Boolean? = null,
+        learned: String? = null,
+    ): String {
+        val party = merchant.orEmpty().lowercase(Locale.ROOT)
+        val order = details.orEmpty().lowercase(Locale.ROOT)
+        val combined = "$party $order"
+        if (isIncome == true) {
+            return learned ?: strongest(specificRules.filter { it.category in setOf("收入进账", "红包转账") }, combined)
+                ?: "收入进账"
         }
+        val services = serviceRules.filter { it.matches(combined) }
+        val eligible = specificRules.filter { isIncome != false || (it.category != "收入进账" && it.word != "收款") }
+        // 配送/平台标签较弱。例如“美团闪购·某药房”应识别为买药。
+        val decisive = services.filterNot { it.word in setOf("美团闪购", "京东商城", "外卖", "美团外卖", "饿了么外卖", "外卖订单") }
+        val noisyMerchant = isPlatformMerchant(party)
+        val merchantCategory = if (noisyMerchant) null else strongest(eligible, party)
+        val detailsCategory = strongest(eligible, order)
+        val serviceCategory = strongest(decisive, combined)
+        if (serviceCategory != null) return serviceCategory
+        if (decisive.map { it.category }.distinct().size > 1) return merchantCategory ?: OTHER
+        val delivery = strongest(services, combined)
+        return learned.takeUnless { noisyMerchant }
+            ?: merchantCategory ?: detailsCategory ?: delivery
+            ?: if ("淘宝闪购" !in combined && shoppingPlatforms.any { it in "$combined ${channel.orEmpty()}" }) {
+                "购物消费"
+            } else OTHER
+    }
+
+    /** 同等级证据指向多个类别时，由最长的具体词组决定；完全平票则留给兜底。 */
+    private fun strongest(rules: List<Rule>, text: String): String? {
+        val matches = rules.filter { it.matches(text) }
+        val length = matches.maxOfOrNull { it.word.length } ?: return null
+        return matches.filter { it.word.length == length }.map { it.category }.distinct().singleOrNull()
     }
 
     /** 各分类对应的图标（emoji，简洁直观；自定义分类走 🏷️） */

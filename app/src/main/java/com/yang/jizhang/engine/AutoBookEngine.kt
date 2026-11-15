@@ -44,7 +44,7 @@ object AutoBookEngine {
                         source = bill.channel,
                         transactionTime = postTime,
                         reason = bill.reviewReason,
-                        rawSnippet = bill.rawSnippet,
+                        rawSnippet = bill.classificationDetails.ifBlank { bill.rawSnippet.orEmpty() }.ifBlank { null },
                     ),
                 )
             }
@@ -61,8 +61,13 @@ object AutoBookEngine {
             return
         }
 
-        val category = com.yang.jizhang.util.CategoryLearner.hint(app, bill.merchant)
-            ?: CategoryRules.guess(bill.merchant, bill.channel, isIncome = bill.isIncome)
+        val category = CategoryRules.classify(
+            merchant = bill.merchant,
+            details = bill.classificationDetails,
+            channel = bill.channel,
+            isIncome = bill.isIncome,
+            learned = com.yang.jizhang.util.CategoryLearner.hint(app, bill.merchant),
+        )
         val id = dao.insertIgnore(
             TxEntity(
                 amountCents = bill.amountCents,
@@ -119,8 +124,13 @@ object AutoBookEngine {
                 TxEntity(
                     amountCents = amountCents,
                     isIncome = isIncome,
-                    category = com.yang.jizhang.util.CategoryLearner.hint(app, pending.merchant)
-                        ?: CategoryRules.guess(pending.merchant, pending.source, isIncome = isIncome),
+                    category = CategoryRules.classify(
+                        merchant = pending.merchant,
+                        details = pending.rawSnippet,
+                        channel = pending.source,
+                        isIncome = isIncome,
+                        learned = com.yang.jizhang.util.CategoryLearner.hint(app, pending.merchant),
+                    ),
                     note = pending.merchant.ifBlank { pending.source },
                     source = pending.source,
                     time = pending.transactionTime,
