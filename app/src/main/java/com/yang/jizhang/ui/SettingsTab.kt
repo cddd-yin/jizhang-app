@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
@@ -95,6 +96,7 @@ internal fun SettingsTab(
     pendingCount: Int,
     onOpenReview: () -> Unit,
     onExport: () -> Unit,
+    onOpenArchive: () -> Unit,
     onOpenRecurring: () -> Unit,
     themePreset: JzPreset,
     themeMode: JzMode,
@@ -420,6 +422,7 @@ internal fun SettingsTab(
                 if (!importing) importPicker.launch(arrayOf("*/*"))
             }
             CardDivider()
+            ActionItem(Icons.Outlined.Archive, "归档账单", "查看、恢复或彻底删除已归档账单", onOpenArchive)
             ActionItem(Icons.Outlined.Download, "导出账单 CSV", "导出本月或全部账单，可分享、可再导入") {
                 onExport()
             }

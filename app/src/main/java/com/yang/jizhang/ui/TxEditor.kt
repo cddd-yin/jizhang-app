@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Backspace
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +61,7 @@ fun TxEditor(
     tx: TxEntity?,
     onClose: () -> Unit,
     onSave: (amountCents: Long, isIncome: Boolean, category: String, note: String) -> Unit,
-    onDelete: () -> Unit,
+    onArchive: () -> Unit,
     draft: ShareDraftItem? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -100,7 +100,7 @@ fun TxEditor(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // 顶栏：关闭 | 标题 | 删除(编辑时) | 保存
+            // 顶栏：关闭 | 标题 | 归档(编辑时) | 保存
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -116,10 +116,10 @@ fun TxEditor(
                     textAlign = TextAlign.Center,
                 )
                 if (tx != null) {
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = onArchive) {
                         Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = "删除",
+                            Icons.Outlined.Archive,
+                            contentDescription = "归档",
                             tint = expenseColor(),
                         )
                     }

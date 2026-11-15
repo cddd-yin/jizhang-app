@@ -223,14 +223,14 @@ fun StatusBanner(
 
 // ── 交易行（明细/最近列表通用） ──
 
-/** 左滑仅露出删除操作，右滑收起。按账单 ID 隔离手势状态。 */
+/** 左滑仅露出归档操作，右滑收起。按账单 ID 隔离手势状态。 */
 @Composable
 fun TxRow(
     tx: TxEntity,
     showDivider: Boolean,
     onClick: () -> Unit,
     subLabel: String = "${tx.category} · ${tx.source}",
-    onDelete: (() -> Unit)? = null,
+    onArchive: (() -> Unit)? = null,
 ) = key(tx.id) {
     val actionWidth = 80.dp
     val density = LocalDensity.current
@@ -239,23 +239,23 @@ fun TxRow(
     var revealed by remember { mutableFloatStateOf(0f) }
     Column {
         Box(Modifier.fillMaxWidth().clipToBounds()) {
-            if (onDelete != null && revealed > 0f) {
+            if (onArchive != null && revealed > 0f) {
                 Box(
                     Modifier.align(Alignment.CenterEnd).matchParentSize()
-                        .background(expenseColor().copy(alpha = 0.13f)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                 )
                 Box(
                     Modifier.align(Alignment.CenterEnd).width(actionWidth).height(48.dp)
                         .clickable(role = Role.Button) {
                             revealed = 0f
-                            onDelete()
+                            onArchive()
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("删除", color = expenseColor(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("归档", color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            val drag = if (onDelete != null) {
+            val drag = if (onArchive != null) {
                 Modifier.draggable(
                     state = rememberDraggableState { delta -> revealed = (revealed - delta).coerceIn(0f, limit) },
                     orientation = Orientation.Horizontal,

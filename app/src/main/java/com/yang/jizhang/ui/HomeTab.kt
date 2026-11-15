@@ -79,7 +79,7 @@ fun HomeTab(
     onEdit: (TxEntity) -> Unit,
     onGoRecords: () -> Unit,
     onOpenBudgets: () -> Unit,
-    onDelete: (TxEntity) -> Unit,
+    onArchive: (TxEntity) -> Unit,
 ) {
     val context = LocalContext.current
     val voyager = LocalJzStyle.current == JzStyle.VOYAGER
@@ -307,7 +307,7 @@ fun HomeTab(
                                 showDivider = i < recent.lastIndex,
                                 onClick = { onEdit(tx) },
                                 subLabel = day,
-                                onDelete = { onDelete(tx) },
+                                onArchive = { onArchive(tx) },
                             )
                         }
                     }

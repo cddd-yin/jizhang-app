@@ -127,6 +127,7 @@ fun AppRoot() {
     var adding by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
     var showBudgets by remember { mutableStateOf(false) }
+    var showArchive by rememberSaveable { mutableStateOf(false) }
     var showRecurring by remember { mutableStateOf(false) }
     var shareDraft by remember { mutableStateOf<ShareDraftItem?>(null) }
     var editorKey by remember { mutableIntStateOf(0) }
@@ -134,6 +135,8 @@ fun AppRoot() {
     val range = remember(year, month) { CategoryRules.monthRange(year, month) }
     val txs by dao.watchRange(range[0], range[1] - 1)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val activeTxs = remember(txs) { txs.filter { it.archivedAt == null } }
 
     // 主题应用：模式换算 + 全树包裹（弹窗/弹层一并生效）
     val darkTheme = when (themeMode) {
@@ -155,38 +158,38 @@ fun AppRoot() {
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     // 系统返回键：优先关闭弹层（记账页/预算管理/周期记账），而不是退出 App
     androidx.activity.compose.BackHandler(
-        enabled = adding || editing != null || showBudgets || showRecurring
+        enabled = adding || editing != null || showBudgets || showRecurring || showArchive
     ) {
         when {
             adding || editing != null -> { adding = false; editing = null; shareDraft = null }
             showBudgets -> showBudgets = false
             showRecurring -> showRecurring = false
+            showArchive -> showArchive = false
         }
     }
-    // 左滑删除账单 + Snackbar 撤销
-    val deleteWithUndo: (TxEntity) -> Unit = { tx ->
+    val archiveWithUndo: (TxEntity) -> Unit = { tx ->
         scope.launch {
+            val stamp = System.currentTimeMillis()
             try {
-                if (dao.delete(tx) == 0) return@launch
+                if (dao.archive(tx.id, stamp) == 0) return@launch
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                snackbarHostState.showSnackbar("删除失败，请重试")
+                snackbarHostState.showSnackbar("归档失败，请重试")
                 return@launch
             }
             val result = snackbarHostState.showSnackbar(
-                message = "已删除「${tx.note.ifBlank { tx.category }}」",
+                message = "账单已归档",
                 actionLabel = "撤销",
                 duration = androidx.compose.material3.SnackbarDuration.Long,
             )
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                 try {
-                    val restored = dao.insertIgnore(tx) != -1L || dao.findByDedupeKey(tx.dedupeKey) != null
-                    snackbarHostState.showSnackbar(if (restored) "账单已恢复" else "恢复失败，请重新记入这笔账单")
+                    dao.restoreArchived(tx.id, stamp)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    snackbarHostState.showSnackbar("恢复失败，请重新记入这笔账单")
+                    snackbarHostState.showSnackbar("恢复失败，请在归档页重试")
                 }
             }
         }
@@ -211,6 +214,7 @@ fun AppRoot() {
             while (true) {
                 if (UiBus.openEditorRequest) {
                     UiBus.openEditorRequest = false
+                    showArchive = false
                     editing = null
                     shareDraft = null
                     adding = true
@@ -218,13 +222,14 @@ fun AppRoot() {
                 }
                 UiBus.sharePending?.let { draft ->
                     UiBus.sharePending = null
+                    showArchive = false
                     editing = null
                     shareDraft = draft
                     adding = true
                     editorKey++ // 记账页已开时又收到分享 → 丢弃旧输入，换上新草稿
                 }
                 val reviewingBill = reviewId?.let { id -> pending?.any { it.id == id } != false } == true
-                if (!reviewBusy && !reviewingBill && !adding && editing == null && !showExport && !showBudgets && !showRecurring) {
+                if (!reviewBusy && !reviewingBill && !adding && editing == null && !showExport && !showBudgets && !showRecurring && !showArchive) {
                     UiBus.pendingBillRequest?.let { id ->
                         UiBus.pendingBillRequest = null
                         openReview()
@@ -321,16 +326,16 @@ fun AppRoot() {
                     onEdit = { editing = it },
                     onGoRecords = { tab = 1 },
                     onOpenBudgets = { showBudgets = true },
-                    onDelete = deleteWithUndo,
+                    onArchive = archiveWithUndo,
                 )
                 1 -> RecordsTab(
-                    txs = txs,
+                    txs = activeTxs,
                     contentPad = pad,
                     year = year,
                     month = month,
                     onMonthChange = { y, m -> year = y; month = m },
                     onItemClick = { editing = it },
-                    onDelete = deleteWithUndo,
+                    onArchive = archiveWithUndo,
                 )
                 2 -> StatsTab(
                     txs = txs,
@@ -346,6 +351,7 @@ fun AppRoot() {
                     pendingCount = pending.orEmpty().size,
                     onOpenReview = openReview,
                     onExport = { showExport = true },
+                    onOpenArchive = { showArchive = true },
                     onOpenRecurring = { showRecurring = true },
                     themePreset = themePreset,
                     themeMode = themeMode,
@@ -378,7 +384,7 @@ fun AppRoot() {
         }
     }
 
-    if (reviewOpen && !adding && editing == null && !showExport && !showBudgets && !showRecurring) {
+    if (reviewOpen && !adding && editing == null && !showExport && !showBudgets && !showRecurring && !showArchive) {
         val bills = pending
         val selected = bills?.firstOrNull { it.id == reviewId }
         fun submitReview(bill: PendingBill, update: suspend () -> String) {
@@ -465,10 +471,10 @@ fun AppRoot() {
                     editing = null
                     shareDraft = null
                 },
-                onDelete = {
+                onArchive = {
                     val tx = editing
                     editing = null
-                    if (tx != null) deleteWithUndo(tx) // 编辑页删除同样可撤销
+                    if (tx != null) archiveWithUndo(tx)
                 },
             )
         }
@@ -509,6 +515,10 @@ fun AppRoot() {
             recurringDao = (context.applicationContext as JizhangApp).db.recurringDao(),
             onClose = { showRecurring = false },
         )
+    }
+
+    if (showArchive) {
+        ArchivedBillsScreen(dao, onClose = { showArchive = false })
     }
 
     } // JizhangTheme

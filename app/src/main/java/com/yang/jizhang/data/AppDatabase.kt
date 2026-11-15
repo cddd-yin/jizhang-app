@@ -35,6 +35,7 @@ data class TxEntity(
     val time: Long,
     /** 去重键：来源+金额+时间(分)+内容摘要 */
     val dedupeKey: String,
+    val archivedAt: Long? = null,
 )
 
 /** 预算：category 为空串表示总预算；period = "monthly" / "weekly" */
@@ -76,8 +77,17 @@ interface TxDao {
     @Update
     suspend fun update(tx: TxEntity)
 
-    @Delete
-    suspend fun delete(tx: TxEntity): Int
+    @Query("UPDATE transactions SET archivedAt = :stamp WHERE id = :id AND archivedAt IS NULL")
+    suspend fun archive(id: Long, stamp: Long): Int
+
+    @Query("UPDATE transactions SET archivedAt = NULL WHERE id = :id AND archivedAt = :stamp")
+    suspend fun restoreArchived(id: Long, stamp: Long): Int
+
+    @Query("DELETE FROM transactions WHERE id = :id AND archivedAt = :stamp")
+    suspend fun deleteArchived(id: Long, stamp: Long): Int
+
+    @Query("SELECT * FROM transactions WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC")
+    fun watchArchived(): Flow<List<TxEntity>>
 
     @Query("SELECT * FROM transactions WHERE time BETWEEN :start AND :end ORDER BY time DESC")
     fun watchRange(start: Long, end: Long): Flow<List<TxEntity>>
@@ -91,7 +101,7 @@ interface TxDao {
     @Query("SELECT * FROM transactions WHERE time >= :start ORDER BY time")
     fun watchSince(start: Long): Flow<List<TxEntity>>
 
-    @Query("SELECT * FROM transactions ORDER BY time DESC LIMIT :limit")
+    @Query("SELECT * FROM transactions WHERE archivedAt IS NULL ORDER BY time DESC LIMIT :limit")
     fun watchRecent(limit: Int): Flow<List<TxEntity>>
 
     @Query("SELECT * FROM transactions ORDER BY time DESC")
@@ -184,7 +194,7 @@ interface PendingBillDao {
 
 @Database(
     entities = [TxEntity::class, BudgetEntity::class, RecurringEntity::class, PendingBill::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -243,10 +253,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN archivedAt INTEGER")
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, AppDatabase::class.java, "jizhang.db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
         }
     }
 }

@@ -49,6 +49,7 @@ object BackupHelper {
                                 put("source", t.source)
                                 put("time", t.time)
                                 put("dedupeKey", t.dedupeKey)
+                                t.archivedAt?.let { put("archivedAt", it) }
                             }
                         )
                     }
@@ -114,6 +115,7 @@ object BackupHelper {
                             note = o.optString("note", ""),
                             source = o.optString("source", "手动"),
                             time = o.optLong("time", System.currentTimeMillis()),
+                            archivedAt = o.optLong("archivedAt", 0L).takeIf { it > 0L },
                             dedupeKey = o.optString("dedupeKey")
                                 .ifBlank { "RESTORE|$i|${o.optLong("time")}|${o.getLong("amountCents")}" },
                         )

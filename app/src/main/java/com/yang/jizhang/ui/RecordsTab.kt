@@ -67,7 +67,7 @@ fun RecordsTab(
     month: Int,
     onMonthChange: (Int, Int) -> Unit,
     onItemClick: (TxEntity) -> Unit,
-    onDelete: (TxEntity) -> Unit,
+    onArchive: (TxEntity) -> Unit,
 ) {
     val voyager = LocalJzStyle.current == JzStyle.VOYAGER
     val showOverview = voyager && WindowInsets.ime.getBottom(LocalDensity.current) == 0
@@ -208,7 +208,7 @@ fun RecordsTab(
                                     tx = tx,
                                     showDivider = i < g.items.lastIndex,
                                     onClick = { onItemClick(tx) },
-                                    onDelete = { onDelete(tx) },
+                                    onArchive = { onArchive(tx) },
                                 )
                             }
                         }
