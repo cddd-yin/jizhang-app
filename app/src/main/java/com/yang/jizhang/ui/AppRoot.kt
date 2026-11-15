@@ -672,6 +672,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolea
         }
         Text(
             item.label,
+            style = MaterialTheme.typography.labelSmall,
             fontSize = 11.sp,
             color = if (selected) MaterialTheme.colorScheme.onSurface else tint,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

@@ -430,7 +430,7 @@ fun StatsTab(
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(cat, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
-                                    Text(fmtCents(cents), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text(fmtCents(cents), style = MaterialTheme.typography.displaySmall, fontSize = 13.sp)
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         if (incomeTotalView > 0) "%.0f%%".format(cents.toFloat() / incomeTotalView * 100) else "0%",
@@ -507,7 +507,7 @@ fun StatsTab(
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(cat, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                                        Text(fmtCents(cents), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                        Text(fmtCents(cents), style = MaterialTheme.typography.displaySmall, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.width(8.dp))
                                         Text(
                                             "$count 笔",
@@ -581,7 +581,7 @@ private fun ChartDisplayControl(
     onSelect: (Boolean) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(5.dp))
         ChartChoice(first, second, secondSelected, onSelect)
     }
@@ -594,7 +594,7 @@ private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) =
 
 @Composable
 private fun ChartChoice(first: String, second: String, secondSelected: Boolean, onSelect: (Boolean) -> Unit) {
-    val shape = RoundedCornerShape(50)
+    val shape = MaterialTheme.shapes.large
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = shape,

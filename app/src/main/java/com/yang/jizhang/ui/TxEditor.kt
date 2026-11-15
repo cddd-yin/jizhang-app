@@ -155,7 +155,7 @@ fun TxEditor(
                 // ── 支出 / 收入分段 ──
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(50),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(Modifier.padding(5.dp)) {
@@ -218,7 +218,7 @@ fun TxEditor(
                 // ── 备注 ──
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     androidx.compose.foundation.text.BasicTextField(
@@ -251,7 +251,7 @@ fun TxEditor(
             // ── 金额显示 + 键盘 ──
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
+                shape = MaterialTheme.shapes.large.copy(bottomEnd = androidx.compose.foundation.shape.ZeroCornerSize, bottomStart = androidx.compose.foundation.shape.ZeroCornerSize),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
@@ -271,6 +271,7 @@ fun TxEditor(
                         ) {
                             Text(
                                 amountText.ifEmpty { "0.00" },
+                                style = MaterialTheme.typography.displayLarge,
                                 fontSize = 38.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = (-0.5).sp,
@@ -382,7 +383,7 @@ private fun CategoryPick(
                 androidx.compose.material3.Icon(
                     categoryIcon(category),
                     contentDescription = category,
-                    tint = if (selected) androidx.compose.ui.graphics.Color.White else categoryHue(category),
+                    tint = if (selected) readableOn(categoryHue(category)) else categoryHue(category),
                     modifier = Modifier.size(21.dp),
                 )
             }
@@ -420,7 +421,7 @@ private fun Keypad(
                         Modifier
                             .weight(1f)
                             .height(52.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .clickable {
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
@@ -440,7 +441,7 @@ private fun Keypad(
                                 modifier = Modifier.size(22.dp),
                             )
                         } else {
-                            Text(k.toString(), fontSize = 22.sp, fontWeight = FontWeight.Medium)
+                            Text(k.toString(), style = MaterialTheme.typography.displaySmall, fontSize = 22.sp)
                         }
                     }
                 }
@@ -502,7 +503,7 @@ private fun AddCategoryDialog(
                         error = null
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.medium,
                     isError = error != null,
                     supportingText = error?.let { { Text(it, fontSize = 12.sp) } },
                     modifier = Modifier.fillMaxWidth(),

@@ -165,24 +165,27 @@ val ExpenseLight = Color(0xFFE5484D)
 val WarnDark = Color(0xFFF5B544)
 val WarnLight = Color(0xFFC77414)
 
-// ── 图表色板（固定多色，饼图/图例一致性优先） ──
-val JzChartColors = listOf(
-    Color(0xFF8B8CF8), // 藤紫
-    Color(0xFF42D392), // 绿
-    Color(0xFFF5A623), // 橙
-    Color(0xFFEC6AA8), // 粉
-    Color(0xFF38BDF8), // 天青
-    Color(0xFFA78BFA), // 亮紫
-)
+// 图表、图例使用同一套随风格变化的色板。
+private val VoyagerChartColors = chartPalette(0xFF7463B4, 0xFFB28343, 0xFF548399, 0xFFAF6488, 0xFF598973, 0xFF9E7160)
+private val GlassChartColors = chartPalette(0xFF767BE8, 0xFF229D76, 0xFFC17D12, 0xFFCF598B, 0xFF299ABA, 0xFFA375DA)
+private val CompactChartColors = chartPalette(0xFF4D74AD, 0xFF22876B, 0xFFAE751C, 0xFF9D4F66, 0xFF4B8791, 0xFF835A9A)
+private val IosChartColors = chartPalette(0xFF0079DD, 0xFF249D53, 0xFFE8840F, 0xFFD84670, 0xFF228FA8, 0xFF9360CC)
+private val OriginChartColors = chartPalette(0xFF4D64E0, 0xFF098D85, 0xFFE98A3C, 0xFFD764A5, 0xFF319FD4, 0xFF8054CD)
+private val PaperChartColors = chartPalette(0xFFA35A3C, 0xFF648049, 0xFFA47524, 0xFF8F5168, 0xFF4F7780, 0xFF75638E)
+private val InkChartColors = chartPalette(0xFF777777, 0xFFA0A0A0, 0xFF515151, 0xFFB9B9B9, 0xFF696969, 0xFF929292)
 
-private val VoyagerChartColors = listOf(
-    Color(0xFF8274AA), Color(0xFFBD955C), Color(0xFF68849E),
-    Color(0xFF9D6F84), Color(0xFF698777), Color(0xFFAF8067),
-)
+private fun chartPalette(vararg argb: Long) = argb.map { Color(it) }
 
 @Composable
-internal fun chartColors(): List<Color> =
-    if (LocalJzStyle.current == JzStyle.VOYAGER) VoyagerChartColors else JzChartColors
+internal fun chartColors(): List<Color> = when (LocalJzStyle.current) {
+    JzStyle.VOYAGER -> VoyagerChartColors
+    JzStyle.GLASS -> GlassChartColors
+    JzStyle.COMPACT -> CompactChartColors
+    JzStyle.IOS -> IosChartColors
+    JzStyle.ORIGIN_OS -> OriginChartColors
+    JzStyle.PAPER -> PaperChartColors
+    JzStyle.INK -> InkChartColors
+}
 
 private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: Long, border: Long) {
     val page = Color(page)
@@ -197,6 +200,8 @@ private val voyagerLight = Surfaces(0xFFE2DFF1, 0xFFF4F0FC, 0xFFDED7F0, 0xFF211B
 private val voyagerDark = Surfaces(0xFF101026, 0xFF211C3B, 0xFF2D2650, 0xFFF7EEFC, 0xFFCFC1DF, 0xFF635584)
 private val neutralLight = Surfaces(0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF404040, 0xFF666666, 0xFFE6E6E6)
 private val neutralDark = Surfaces(0xFF171717, 0xFF262626, 0xFF303030, 0xFFE5E5E5, 0xFFA1A1A1, 0xFF2E2E2E)
+private val compactLight = Surfaces(0xFFF3F5F8, 0xFFFCFDFE, 0xFFE7ECF2, 0xFF242E3B, 0xFF4B5768, 0xFFCAD2DE)
+private val compactDark = Surfaces(0xFF171C23, 0xFF212934, 0xFF2A3543, 0xFFE9EEF5, 0xFFBAC6D4, 0xFF435165)
 private val iosLight = Surfaces(0xFFF2F2F7, 0xFFFFFFFF, 0xFFE8E8ED, 0xFF17171B, 0xFF606068, 0xFFDADAE0)
 private val iosDark = Surfaces(0xFF0B0B0D, 0xFF1C1C1E, 0xFF2C2C2E, 0xFFF5F5F7, 0xFFAEAEB2, 0xFF38383A)
 private val originLight = Surfaces(0xFFF0F4FD, 0xFFFFFFFF, 0xFFE4EDFC, 0xFF172339, 0xFF4B5B74, 0xFFD4DFF1)
@@ -212,7 +217,8 @@ private fun JzStyle.surfaces(dark: Boolean): Surfaces = when (this) {
     JzStyle.ORIGIN_OS -> if (dark) originDark else originLight
     JzStyle.PAPER -> if (dark) paperDark else paperLight
     JzStyle.INK -> if (dark) inkDark else inkLight
-    JzStyle.GLASS, JzStyle.COMPACT -> if (dark) neutralDark else neutralLight
+    JzStyle.GLASS -> if (dark) neutralDark else neutralLight
+    JzStyle.COMPACT -> if (dark) compactDark else compactLight
 }
 
 internal fun JzStyle.defaultAccent(dark: Boolean): Color = when (this) {
@@ -272,20 +278,42 @@ private val Sans = FontFamily(
 
 private val Lato = FontFamily(Font(R.font.lato_regular, FontWeight.Normal))
 
-val JzTypography = Typography(
-    headlineLarge = TextStyle(fontFamily = Lato, fontWeight = FontWeight.Normal, fontSize = 40.sp),
-    headlineMedium = TextStyle(fontFamily = Lato, fontWeight = FontWeight.Normal, fontSize = 28.sp),
-    headlineSmall = TextStyle(fontFamily = Lato, fontWeight = FontWeight.Normal, fontSize = 22.sp),
-    titleLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
-    titleMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 16.sp),
-    titleSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    bodyLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 15.sp),
-    bodyMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 14.sp),
-    bodySmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 12.sp),
-    labelLarge = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    labelMedium = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 12.sp),
-    labelSmall = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Normal, fontSize = 10.sp),
-)
+internal fun JzStyle.typography(): Typography {
+    val body = when (this) {
+        JzStyle.PAPER -> FontFamily.Serif
+        JzStyle.IOS, JzStyle.COMPACT, JzStyle.INK -> FontFamily.SansSerif
+        else -> Sans
+    }
+    val heading = when (this) {
+        JzStyle.VOYAGER, JzStyle.PAPER -> FontFamily.Serif
+        JzStyle.GLASS -> Lato
+        else -> body
+    }
+    val amounts = when (this) {
+        JzStyle.VOYAGER, JzStyle.PAPER -> FontFamily.Serif
+        JzStyle.INK, JzStyle.COMPACT -> FontFamily.Monospace
+        JzStyle.IOS -> FontFamily.SansSerif
+        else -> Lato
+    }
+    val density = if (this == JzStyle.COMPACT) -1 else 0
+    return Typography(
+        displayLarge = TextStyle(fontFamily = amounts, fontSize = 44.sp, fontWeight = FontWeight.SemiBold),
+        displayMedium = TextStyle(fontFamily = amounts, fontSize = 30.sp, fontWeight = FontWeight.Medium),
+        displaySmall = TextStyle(fontFamily = amounts, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+        headlineLarge = TextStyle(fontFamily = heading, fontSize = titleSize.sp, fontWeight = titleWeight),
+        headlineMedium = TextStyle(fontFamily = heading, fontSize = 28.sp, fontWeight = titleWeight),
+        headlineSmall = TextStyle(fontFamily = heading, fontSize = 22.sp, fontWeight = FontWeight.SemiBold),
+        titleLarge = TextStyle(fontFamily = heading, fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
+        titleMedium = TextStyle(fontFamily = heading, fontWeight = FontWeight.Medium, fontSize = (16 + density).sp),
+        titleSmall = TextStyle(fontFamily = heading, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+        bodyLarge = TextStyle(fontFamily = body, fontSize = (15 + density).sp),
+        bodyMedium = TextStyle(fontFamily = body, fontSize = (14 + density).sp),
+        bodySmall = TextStyle(fontFamily = body, fontSize = 12.sp),
+        labelLarge = TextStyle(fontFamily = body, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+        labelMedium = TextStyle(fontFamily = body, fontSize = 12.sp),
+        labelSmall = TextStyle(fontFamily = body, fontSize = 10.sp),
+    )
+}
 
 internal val JzStyle.usesFlatBalance: Boolean
     get() = this == JzStyle.VOYAGER || this == JzStyle.PAPER || this == JzStyle.INK
@@ -294,14 +322,10 @@ internal val LocalJzStyle = androidx.compose.runtime.staticCompositionLocalOf { 
 
 @Composable
 internal fun PageTitle(text: String, modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
-    val style = LocalJzStyle.current
     androidx.compose.material3.Text(
         text,
         modifier = modifier,
-        fontFamily = if (style == JzStyle.VOYAGER) FontFamily.Serif else null,
-        fontSize = style.titleSize.sp,
-        fontWeight = style.titleWeight,
-        letterSpacing = (-0.3).sp,
+        style = MaterialTheme.typography.headlineLarge.copy(letterSpacing = (-0.3).sp),
     )
 }
 
@@ -346,8 +370,7 @@ fun JizhangTheme(
             val ctx = androidx.compose.ui.platform.LocalContext.current
             val dynamic = if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
                 else androidx.compose.material3.dynamicLightColorScheme(ctx)
-            if (style == JzStyle.GLASS || style == JzStyle.COMPACT) dynamic
-            else styleColors(style, darkTheme, dynamic.primary)
+            styleColors(style, darkTheme, dynamic.primary)
         }
         else -> {
             val accent = when {
@@ -371,7 +394,7 @@ fun JizhangTheme(
     ) {
         MaterialTheme(
             colorScheme = scheme,
-            typography = JzTypography,
+            typography = androidx.compose.runtime.remember(style) { style.typography() },
             shapes = style.shapes,
             content = content,
         )

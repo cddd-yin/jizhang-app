@@ -342,7 +342,7 @@ private fun SearchField(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         modifier = modifier,
     ) {
         Row(
@@ -360,7 +360,7 @@ private fun SearchField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = androidx.compose.material3.LocalTextStyle.current.copy(fontSize = 15.sp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 modifier = Modifier.weight(1f),
                 decorationBox = { inner ->
                     Box {

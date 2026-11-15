@@ -79,7 +79,8 @@ internal fun ArchivedBillsScreen(dao: TxDao, onClose: () -> Unit) {
                         Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Text(tx.note.ifBlank { tx.category }, style = MaterialTheme.typography.titleMedium)
-                                Text(fmtSigned(tx.amountCents, tx.isIncome), style = MaterialTheme.typography.titleLarge)
+                                Text(fmtSigned(tx.amountCents, tx.isIncome), style = MaterialTheme.typography.displayMedium,
+                                    color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     listOf(date, tx.category, tx.source).joinToString(" · "),
                                     style = MaterialTheme.typography.bodySmall,

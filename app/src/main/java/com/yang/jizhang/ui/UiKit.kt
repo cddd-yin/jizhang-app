@@ -105,18 +105,29 @@ fun categoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVec
 }
 
 /** 每个分类的专属色相（彩底圆徽 / 统计条共用） */
-fun categoryHue(category: String): Color = when (category) {
-    "餐饮美食" -> Color(0xFFF5A623)
-    "交通出行" -> Color(0xFF3E8EF7)
-    "购物消费" -> Color(0xFFEC6AA8)
-    "生活缴费" -> Color(0xFF22C4DD)
-    "居住住房" -> Color(0xFF14B8A6)
-    "娱乐休闲" -> Color(0xFFA05CF0)
-    "医疗健康" -> Color(0xFFEF5350)
-    "学习教育" -> Color(0xFF6472F3)
-    "红包转账" -> Color(0xFFFB6F92)
-    "收入进账" -> Color(0xFF22C55E)
-    else -> Color(0xFF8E97A8)
+@Composable
+fun categoryHue(category: String): Color {
+    val base = when (category) {
+        "餐饮美食" -> Color(0xFFF5A623)
+        "交通出行" -> Color(0xFF3E8EF7)
+        "购物消费" -> Color(0xFFEC6AA8)
+        "生活缴费" -> Color(0xFF22C4DD)
+        "居住住房" -> Color(0xFF14B8A6)
+        "娱乐休闲" -> Color(0xFFA05CF0)
+        "医疗健康" -> Color(0xFFEF5350)
+        "学习教育" -> Color(0xFF6472F3)
+        "红包转账" -> Color(0xFFFB6F92)
+        "收入进账" -> Color(0xFF22C55E)
+        else -> Color(0xFF8E97A8)
+    }
+    val style = LocalJzStyle.current
+    val scheme = MaterialTheme.colorScheme
+    return when (style) {
+        JzStyle.INK -> androidx.compose.ui.graphics.lerp(base, scheme.onSurface, 0.82f)
+        JzStyle.PAPER, JzStyle.VOYAGER -> androidx.compose.ui.graphics.lerp(base, scheme.primary, 0.46f)
+        JzStyle.COMPACT -> androidx.compose.ui.graphics.lerp(base, scheme.onSurface, 0.22f)
+        else -> androidx.compose.ui.graphics.lerp(base, scheme.primary, 0.18f)
+    }
 }
 
 /** 彩色分类圆徽：色相底 + emoji 图标（Expenso 标志性元素） */
@@ -127,7 +138,7 @@ fun CategoryCircle(category: String, size: Dp = 42.dp, modifier: Modifier = Modi
     Box(
         modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(MaterialTheme.shapes.medium)
             .background(hue.copy(alpha = if (dark) 0.20f else 0.14f)),
         contentAlignment = Alignment.Center,
     ) {
@@ -151,7 +162,7 @@ fun MonthSwitcher(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(50),
+        shape = MaterialTheme.shapes.large,
         modifier = modifier,
     ) {
         Row(
@@ -309,7 +320,7 @@ private fun androidx.compose.foundation.layout.RowScope.TxRowContent(tx: TxEntit
     }
     Text(
         fmtSigned(tx.amountCents, tx.isIncome),
-        fontSize = 16.sp,
+        style = MaterialTheme.typography.displaySmall,
         fontWeight = FontWeight.SemiBold,
         color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
     )
@@ -392,7 +403,7 @@ fun AnimatedAmountText(
         if (shown < 0) "-${fmtCents(shown)}" else fmtCents(shown),
         fontSize = fontSize,
         fontWeight = fontWeight,
-        fontFamily = fontFamily,
+        fontFamily = fontFamily ?: MaterialTheme.typography.displayMedium.fontFamily,
         letterSpacing = letterSpacing,
         color = color,
         modifier = modifier,
@@ -535,7 +546,7 @@ internal fun ExpenseTrend(
         Text(
             fmtCents(active.second),
             fontSize = 27.sp,
-            fontFamily = if (archive) androidx.compose.ui.text.font.FontFamily.Serif else null,
+            style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.SemiBold,
             color = scheme.onSurface,
         )

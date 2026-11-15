@@ -578,6 +578,7 @@ private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Mo
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 style.label,
+                style = remember(style) { style.typography().titleSmall },
                 fontSize = 13.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 modifier = Modifier.weight(1f),
@@ -733,6 +734,7 @@ private fun PresetCard(
 private fun SettingsHeader(text: String) {
     Text(
         text,
+        style = MaterialTheme.typography.titleSmall,
         fontSize = 13.sp,
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
