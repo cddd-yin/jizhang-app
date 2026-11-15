@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,9 +38,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yang.jizhang.data.TxEntity
@@ -60,6 +69,8 @@ fun RecordsTab(
     onItemClick: (TxEntity) -> Unit,
     onDelete: (TxEntity) -> Unit,
 ) {
+    val voyager = LocalJzStyle.current == JzStyle.VOYAGER
+    val showOverview = voyager && WindowInsets.ime.getBottom(LocalDensity.current) == 0
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var categoryFilter by rememberSaveable { mutableStateOf("") }
     val filtered = remember(txs, searchQuery, categoryFilter) {
@@ -83,20 +94,28 @@ fun RecordsTab(
         // 顶部：大标题 + 月份切换 + 搜索
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(12.dp))
-            PageTitle("账单")
+            PageTitle("账单", if (voyager) Modifier.semantics { heading() } else Modifier)
             Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MonthSwitcher(
-                    title = "$year 年 $month 月",
-                    onPrev = { if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1) },
-                    onNext = { if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1) },
+            val previousMonth = { if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1) }
+            val nextMonth = { if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1) }
+            if (showOverview) {
+                VoyagerMonthOverview(
+                    period = "$year 年 $month 月",
+                    expense = expenseTotal,
+                    income = incomeTotal,
+                    onPrevious = previousMonth,
+                    onNext = nextMonth,
                 )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "支 ${fmtCents(expenseTotal)} · 收 ${fmtCents(incomeTotal)}",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            } else if (!voyager) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MonthSwitcher("$year 年 $month 月", previousMonth, nextMonth)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "支 ${fmtCents(expenseTotal)} · 收 ${fmtCents(incomeTotal)}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             SearchField(
@@ -147,26 +166,30 @@ fun RecordsTab(
             groups.forEach { g ->
                 // 日期头吸顶（v3.13.0）：滚动时贴在列表顶，长列表随时知道在哪天
                 stickyHeader(key = "head_${g.key}") {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.background)
-                            .padding(start = 6.dp, end = 6.dp, top = 12.dp, bottom = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            g.label,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (g.expense > 0) {
-                            Text("支 ${fmtCents(g.expense)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (g.income > 0) {
-                            Spacer(Modifier.width(10.dp))
-                            Text("收 ${fmtCents(g.income)}", fontSize = 12.sp, color = incomeColor())
+                    if (voyager) {
+                        VoyagerDayHeading(g)
+                    } else {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(start = 6.dp, end = 6.dp, top = 12.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                g.label,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (g.expense > 0) {
+                                Text("支 ${fmtCents(g.expense)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (g.income > 0) {
+                                Spacer(Modifier.width(10.dp))
+                                Text("收 ${fmtCents(g.income)}", fontSize = 12.sp, color = incomeColor())
+                            }
                         }
                     }
                 }
@@ -176,7 +199,7 @@ fun RecordsTab(
                         shape = MaterialTheme.shapes.large,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(3.dp, MaterialTheme.shapes.large)
+                            .shadow(if (voyager) 0.dp else 3.dp, MaterialTheme.shapes.large)
                             .then(if (powerSaving) Modifier else Modifier.animateItem()),
                     ) {
                         Column {
@@ -193,6 +216,75 @@ fun RecordsTab(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VoyagerMonthOverview(
+    period: String,
+    expense: Long,
+    income: Long,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = scheme.surfaceVariant,
+    ) {
+        Box {
+            VoyagerStarMotif(Modifier.matchParentSize().alpha(0.52f))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                MonthSwitcher(period, onPrevious, onNext)
+                Spacer(Modifier.height(5.dp))
+                HorizontalDivider(color = scheme.outlineVariant)
+                Spacer(Modifier.height(9.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    VoyagerMonthAmount("支出", expense, Modifier.weight(1f))
+                    VoyagerMonthAmount("收入", income, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoyagerMonthAmount(label: String, amount: Long, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(fmtCents(amount), fontSize = 20.sp, fontFamily = FontFamily.Serif)
+    }
+}
+
+@Composable
+private fun VoyagerDayHeading(group: DayGroup) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().background(scheme.background)
+            .padding(start = 5.dp, end = 5.dp, top = 12.dp, bottom = 7.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                group.label,
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Serif,
+                color = scheme.onBackground,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                if (group.expense > 0) {
+                    Text("支 ${fmtCents(group.expense)}", fontSize = 12.sp, textAlign = TextAlign.End,
+                        color = scheme.onSurfaceVariant)
+                }
+                if (group.income > 0) {
+                    Text("收 ${fmtCents(group.income)}", fontSize = 12.sp, textAlign = TextAlign.End,
+                        color = incomeColor())
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        HorizontalDivider(color = scheme.outlineVariant)
     }
 }
 
