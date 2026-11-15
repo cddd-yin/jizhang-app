@@ -81,7 +81,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.yang.jizhang.engine.BillImporter
-import com.yang.jizhang.engine.keepalive.GuardianService
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -114,7 +113,6 @@ internal fun SettingsTab(
     var showCategoryManage by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
-    var foregroundGuardian by remember { mutableStateOf(GuardianService.isEnabled(context)) }
     var listenerEnabled by remember { mutableStateOf(ListenerHealth.isEnabledInSettings(context)) }
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
     var batteryIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
@@ -248,24 +246,12 @@ internal fun SettingsTab(
                 }
             }
             CardDivider()
-            Row(
-                Modifier.fillMaxWidth().toggleable(foregroundGuardian, role = Role.Switch) {
-                    foregroundGuardian = it
-                    GuardianService.setEnabled(context, it)
-                }.padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("额外后台保活", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "默认关闭。开启会显示常驻通知，可用于支付监听经常断开时。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = foregroundGuardian, onCheckedChange = null)
-            }
+            Text(
+                "支付监听由系统在后台运行，连接状态在本页查看。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
             CardDivider()
             GuideItem(
                 icon = Icons.Outlined.PowerSettingsNew,

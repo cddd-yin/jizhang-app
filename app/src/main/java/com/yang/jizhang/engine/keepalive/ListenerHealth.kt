@@ -1,9 +1,11 @@
 package com.yang.jizhang.engine.keepalive
 
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import com.yang.jizhang.engine.PaymentWatchService
@@ -25,6 +27,7 @@ object ListenerHealth {
     private const val K_LAST_ALIVE = "nls_last_alive_at"
 
     private val binderConnected = AtomicBoolean(false)
+    private var lastRebindRequest = -1L
 
     enum class DisplayState { CONNECTED, RECOVERING, NEED_PERMISSION }
 
@@ -32,11 +35,13 @@ object ListenerHealth {
         ComponentName(context, PaymentWatchService::class.java)
 
     fun isEnabledInSettings(context: Context): Boolean {
-        val flat = Settings.Secure.getString(
-            context.contentResolver, "enabled_notification_listeners"
-        ) ?: return false
-        val mine = componentOf(context).flattenToString()
-        return flat.split(':').any { it.equals(mine, ignoreCase = true) }
+        val component = componentOf(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            if (manager != null) return manager.isNotificationListenerAccessGranted(component)
+        }
+        val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
+        return flat.split(':').any { ComponentName.unflattenFromString(it) == component }
     }
 
     fun isBinderConnected(): Boolean = binderConnected.get()
@@ -66,8 +71,12 @@ object ListenerHealth {
     }
 
     /** 软重绑（连接异常时的第一手段） */
+    @Synchronized
     fun requestRebind(context: Context, force: Boolean = false): Boolean {
-        if (!isEnabledInSettings(context)) return false
+        if (isBinderConnected() || !isEnabledInSettings(context)) return false
+        val now = SystemClock.elapsedRealtime()
+        if (!force && lastRebindRequest >= 0 && now - lastRebindRequest < 1_000L) return false
+        lastRebindRequest = now
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 NotificationListenerHelper.rebind(context)
@@ -80,13 +89,14 @@ object ListenerHealth {
 
     /** 确保组件未被禁用后拉起监听（App 打开时调用） */
     fun ensureListening(context: Context) {
-        if (!isEnabledInSettings(context)) return
+        if (isBinderConnected() || !isEnabledInSettings(context)) return
         ensureComponentEnabled(context)
         requestRebind(context)
     }
 
     /** 强恢复：禁用→启用组件踢系统重绑（带 30s 冷却防抖） */
     fun forceReconnect(context: Context, bypassCooldown: Boolean = false, cooldownMs: Long = 30_000): Boolean {
+        if (isBinderConnected() || !isEnabledInSettings(context)) return false
         val now = System.currentTimeMillis()
         val last = prefs(context).getLong(K_LAST_FORCE, 0L)
         if (!bypassCooldown && now - last < cooldownMs) return false
@@ -131,11 +141,15 @@ object ListenerHealth {
 
     private fun ensureComponentEnabled(context: Context) {
         try {
-            context.packageManager.setComponentEnabledSetting(
-                componentOf(context),
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP,
-            )
+            val manager = context.packageManager
+            val component = componentOf(context)
+            if (manager.getComponentEnabledSetting(component) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                manager.setComponentEnabledSetting(
+                    component,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP,
+                )
+            }
         } catch (_: Exception) {
         }
     }

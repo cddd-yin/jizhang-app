@@ -2,7 +2,6 @@ package com.yang.jizhang
 
 import android.app.Application
 import com.yang.jizhang.data.AppDatabase
-import com.yang.jizhang.engine.keepalive.GuardianService
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.engine.keepalive.WatchdogScheduler
 import com.yang.jizhang.engine.keepalive.ChannelIds
@@ -17,11 +16,9 @@ class JizhangApp : Application() {
         db = AppDatabase.get(this)
         // 升级后系统会撤销通知使用权，标记需重新开启
         ListenerHealth.checkAppUpdated(this)
+        ChannelIds.clearLegacyListenerStatus(this)
         ChannelIds.ensure(this)
         WatchdogScheduler.schedule(this)
-        if (ListenerHealth.isEnabledInSettings(this)) {
-            GuardianService.start(this)
-            ListenerHealth.ensureListening(this)
-        }
+        ListenerHealth.ensureListening(this)
     }
 }

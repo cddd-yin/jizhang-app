@@ -4,7 +4,9 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import com.yang.jizhang.engine.keepalive.GuardianService
+import com.yang.jizhang.engine.keepalive.ListenerHealth
+import com.yang.jizhang.engine.keepalive.ListenerRecovery
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,19 +17,26 @@ import kotlinx.coroutines.launch
  * 职责收窄：只做采集与文本提纯（含聚合通知子项展开），业务全部交给 AutoBookEngine。
  */
 class PaymentWatchService : NotificationListenerService() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
     override fun onListenerConnected() {
         super.onListenerConnected()
         AutoBookEngine.onListenerConnected(this)
-        GuardianService.start(this)
+        ListenerRecovery.cancel(this)
         Log.i(TAG, "connected")
     }
 
     override fun onListenerDisconnected() {
-        AutoBookEngine.onListenerDisconnected(this)
+        AutoBookEngine.onListenerDisconnected()
+        ListenerRecovery.onDisconnected(this)
         Log.w(TAG, "disconnected")
         super.onListenerDisconnected()
+    }
+
+    override fun onDestroy() {
+        if (ListenerHealth.isBinderConnected()) {
+            AutoBookEngine.onListenerDisconnected()
+            ListenerRecovery.onDisconnected(this)
+        }
+        super.onDestroy()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -47,12 +56,16 @@ class PaymentWatchService : NotificationListenerService() {
         }
         if (merged.isBlank()) return
 
+        val app = applicationContext
         val postTime = sbn.postTime
-        scope.launch {
+        val key = sbn.key
+        ingestScope.launch {
             try {
                 AutoBookEngine.ingest(
-                    applicationContext, pkg, title, merged.removePrefix(title).trim().ifBlank { text }, postTime, sbn.key,
+                    app, pkg, title, merged.removePrefix(title).trim().ifBlank { text }, postTime, key,
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "ingest failed", e)
             }
@@ -61,5 +74,7 @@ class PaymentWatchService : NotificationListenerService() {
 
     companion object {
         private const val TAG = "PaymentWatch"
+        // A listener rebind can replace the service while an accepted notification is being saved.
+        private val ingestScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 }

@@ -72,7 +72,6 @@ import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.data.PendingBill
 import com.yang.jizhang.engine.AutoBookEngine
 import com.yang.jizhang.engine.keepalive.ChannelIds
-import com.yang.jizhang.engine.keepalive.GuardianService
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.engine.BillExporter
 import kotlinx.coroutines.CancellationException
@@ -262,6 +261,7 @@ fun AppRoot() {
     val listenerState = remember { mutableStateOf(ListenerHealth.displayState(context)) }
     LaunchedEffect(Unit) {
         lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            ListenerHealth.ensureListening(context)
             while (true) {
                 listenerState.value = ListenerHealth.displayState(context)
                 delay(3_000)
@@ -535,8 +535,7 @@ internal fun handleExportResult(context: Context, uri: Uri?) {
 /** 供重连横幅/设置页共用：强制重连监听 */
 internal fun forceReconnect(context: Context) {
     if (!ListenerHealth.isEnabledInSettings(context)) return
-    if (!ListenerHealth.forceReconnect(context)) ListenerHealth.requestRebind(context)
-    GuardianService.start(context)
+    if (!ListenerHealth.forceReconnect(context)) ListenerHealth.requestRebind(context, force = true)
 }
 
 /** 供状态横幅共用：跳系统通知使用权设置 */

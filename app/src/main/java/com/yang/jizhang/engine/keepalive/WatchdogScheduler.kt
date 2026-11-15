@@ -10,7 +10,7 @@ import android.util.Log
 
 /**
  * v4.0.0 引擎重写：定时唤醒（替代旧 ListenerWatchdog + ListenerWakeReceiver）。
- * AlarmManager inexact 周期兜底：不开 App 也能拉起守卫与补账。
+ * AlarmManager 非精确定时兜底：不开 App 也能检查监听连接并补账。
  */
 object WatchdogScheduler {
     private const val TAG = "Watchdog"
@@ -44,11 +44,8 @@ object WatchdogScheduler {
     fun onTick(context: Context) {
         val app = context.applicationContext
         ChannelIds.ensure(app)
-        if (ListenerHealth.isEnabledInSettings(app)) {
-            if (!ListenerHealth.isBinderConnected()) ListenerHealth.requestRebind(app)
-            GuardianService.start(app)
-        }
-        // 兜底工作（保活心跳之外的第二道网）
+        ListenerHealth.ensureListening(app)
+        // 周期账单、预算与小结的后台兜底。
         com.yang.jizhang.util.RecurringHelper.processDueAsync(app)
         com.yang.jizhang.util.BudgetAlertHelper.checkAsync(app)
         Thread {

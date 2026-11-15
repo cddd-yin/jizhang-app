@@ -5,9 +5,6 @@
     <!-- 通知监听权限 -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
         tools:ignore="ProtectedPermissions" />
-    <!-- 前台服务保活 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 开机自启 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -60,15 +57,9 @@
             </intent-filter>
         </service>
 
-        <!-- 前台守卫（三态状态机保活） -->
-        <service
-            android:name=".engine.keepalive.GuardianService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keep payment notification listener alive for auto bookkeeping" />
-        </service>
+        <receiver
+            android:name=".engine.keepalive.ListenerRetryReceiver"
+            android:exported="false" />
 
         <!-- 开机 / 解锁 / 定时唤醒 -->
         <receiver

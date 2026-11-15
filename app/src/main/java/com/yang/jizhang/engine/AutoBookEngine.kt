@@ -154,7 +154,7 @@ object AutoBookEngine {
         ListenerHealth.markEverEnabled(context)
     }
 
-    fun onListenerDisconnected(context: Context) {
+    fun onListenerDisconnected() {
         ListenerHealth.setConnected(false)
     }
 }

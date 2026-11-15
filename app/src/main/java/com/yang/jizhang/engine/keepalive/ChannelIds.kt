@@ -12,21 +12,17 @@ import com.yang.jizhang.ui.MainActivity
 
 /**
  * v4.0.0 引擎重写：通知渠道与系统通知的唯一出口（替代旧 NotificationChannels）。
- * 渠道四条：自动记账 / 待确认 / 保活前台 / 异常 + 预算 + 小结。
+ * 自动入账、待确认、预算和小结使用各自渠道。
  */
 object ChannelIds {
     const val AUTO_RECORD = "auto_record"
     const val NEEDS_REVIEW = "needs_review"
-    const val GUARDIAN = "guardian_fg"
-    const val ALERT = "engine_alert"
     const val BUDGET = "budget_alert"
 
     private const val ID_AUTO_BASE = 2001
     private const val ID_REVIEW = 3001
     const val ACTION_REVIEW_BILL = "com.yang.jizhang.action.REVIEW_BILL"
     const val EXTRA_PENDING_ID = "pending_bill_id"
-    const val ID_GUARDIAN_FG = 1002
-    const val ID_WATCH_DOWN = 1003
     private const val ID_BUDGET_BASE = 4001
     private const val ID_DIGEST = 5001
 
@@ -44,8 +40,6 @@ object ChannelIds {
             )
         ch(AUTO_RECORD, "自动记账", NotificationManager.IMPORTANCE_LOW, "自动记账成功（低打扰）", false)
         ch(NEEDS_REVIEW, "账单确认", NotificationManager.IMPORTANCE_HIGH, "识别不确定的账单待确认", true)
-        ch(GUARDIAN, "后台自动记账", NotificationManager.IMPORTANCE_MIN, "保活前台服务（可隐藏）", false)
-        ch(ALERT, "监听异常提醒", NotificationManager.IMPORTANCE_HIGH, "支付监听长时间未连上", true)
         ch(BUDGET, "预算提醒", NotificationManager.IMPORTANCE_DEFAULT, "预算 80%/用完/超支提醒", true)
     }
 
@@ -118,35 +112,17 @@ object ChannelIds {
         ctx.getSystemService(NotificationManager::class.java)?.cancel("pending:$pendingId", ID_REVIEW)
     }
 
-    /** 保活前台常驻 */
-    fun guardian(ctx: Context, stateText: String): Notification {
-        ensure(ctx)
-        return NotificationCompat.Builder(ctx, GUARDIAN)
-            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle("记账 · 自动记账运行中")
-            .setContentText(stateText)
-            .setOngoing(true).setSilent(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE).setPriority(NotificationCompat.PRIORITY_MIN)
-            .build()
-    }
-
-    /** 监听断开告警 */
-    fun watchDown(ctx: Context, text: String) {
-        ensure(ctx)
-        val n = NotificationCompat.Builder(ctx, ALERT)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle("支付监听未连接")
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$text\n点击打开 App 自动恢复"))
-            .setContentIntent(openApp(ctx, ID_WATCH_DOWN))
-            .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_ERROR).setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        notify(ctx, ID_WATCH_DOWN, n)
-    }
-
-    fun cancelWatchDown(ctx: Context) {
-        ctx.getSystemService(NotificationManager::class.java)?.cancel(ID_WATCH_DOWN)
+    /** 清除旧版前台保活留下的状态通知。 */
+    fun clearLegacyListenerStatus(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        for (posted in manager.activeNotifications) {
+            val channel = posted.notification.channelId
+            if ((posted.id == 1002 && channel == "guardian_fg") ||
+                (posted.id == 1003 && channel == "engine_alert")
+            ) {
+                manager.cancel(posted.tag, posted.id)
+            }
+        }
     }
 
     /** 预算提醒（标题做 ID 种子，同预算同档只留最新） */
