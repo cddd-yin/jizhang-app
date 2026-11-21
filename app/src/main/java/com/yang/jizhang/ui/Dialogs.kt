@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yang.jizhang.data.PendingBill
+import com.yang.jizhang.engine.payment.ScreenPaymentPolicy
 import java.text.DateFormat
 import java.util.Date
 
@@ -53,18 +54,19 @@ internal fun PendingBillsDialog(
     onSelect: (Long) -> Unit,
     onClose: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     AlertDialog(
         onDismissRequest = onClose,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("待确认账单") },
+        title = { Text(language("待确认账单", "Pending review")) },
         text = {
             Column {
                 feedback?.let {
                     Text(it, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 8.dp))
                 }
                 if (bills.isEmpty()) {
-                    Text("暂无待确认账单")
+                    Text(language("暂无待确认账单", "No transactions to review"))
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         items(bills, key = { it.id }) { bill ->
@@ -74,8 +76,8 @@ internal fun PendingBillsDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(bill.merchant.ifBlank { bill.source }, fontWeight = FontWeight.SemiBold)
-                                    Text(pendingBillDetails(bill), style = MaterialTheme.typography.bodySmall)
+                                    Text(bill.merchant.ifBlank { language.sourceLabel(bill.source) }, fontWeight = FontWeight.SemiBold)
+                                    Text(pendingBillDetails(bill, language), style = MaterialTheme.typography.bodySmall)
                                 }
                                 Text(fmtSigned(bill.amountCents, bill.isIncome), modifier = Modifier.padding(start = 8.dp))
                             }
@@ -85,23 +87,28 @@ internal fun PendingBillsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text("关闭") } },
+        confirmButton = { TextButton(onClick = onClose) { Text(language("关闭", "Close")) } },
     )
 }
 
-private fun pendingBillDetails(bill: PendingBill): String =
-    "${bill.source} · " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-        .format(Date(bill.transactionTime))
+private fun pendingBillDetails(bill: PendingBill, language: VoyagerLanguage): String {
+    val formatter = if (language == VoyagerLanguage.ENGLISH) {
+        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, language.locale)
+    } else DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+    return "${language.sourceLabel(bill.source)} · ${formatter.format(Date(bill.transactionTime))}"
+}
 
 @Composable
 internal fun PendingConfirmDialog(
     pending: PendingBill,
     busy: Boolean,
     error: String?,
+    possibleDuplicate: Pair<Long, Boolean>?,
     onClose: () -> Unit,
     onConfirm: (amountCents: Long, isIncome: Boolean) -> Unit,
     onIgnore: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     var amountText by rememberSaveable(pending.id) {
         mutableStateOf(
             "${pending.amountCents / 100}.${(pending.amountCents % 100).toString().padStart(2, '0')}"
@@ -109,17 +116,26 @@ internal fun PendingConfirmDialog(
     }
     var isIncome by rememberSaveable(pending.id) { mutableStateOf(pending.isIncome) }
     val amountCents = amountText.toBigDecimalOrNull()?.movePointRight(2)?.toLong() ?: 0L
+    val confirmsDuplicate = possibleDuplicate == (amountCents to isIncome)
 
     AlertDialog(
         onDismissRequest = { if (!busy) onClose() },
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text(pending.merchant.ifBlank { "待确认账单" }) },
+        title = { Text(pending.merchant.ifBlank { language("待确认账单", "Pending review") }) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(pendingBillDetails(pending), style = MaterialTheme.typography.bodyMedium)
+                Text(pendingBillDetails(pending, language), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    pending.reason ?: "请核对金额与收支方向",
+                    when (val reason = pending.reason) {
+                        null -> if (ScreenPaymentPolicy.isScreenEvent(pending.eventKey)) {
+                            language("来自支付成功页。请核对金额后入账。", "Detected on a payment success screen. Check the amount before saving.")
+                        } else language("请核对金额与收支方向", "Check the amount and whether this is income or an expense.")
+                        "金额疑似被截断" -> language(reason, "Part of the amount may be missing.")
+                        "识别置信度低" -> language(reason, "The amount could not be identified reliably.")
+                        ScreenPaymentPolicy.POSSIBLE_DUPLICATE_REASON -> language(reason, "This may match a payment detected on screen.")
+                        else -> reason
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -134,7 +150,7 @@ internal fun PendingConfirmDialog(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(Modifier.padding(4.dp).selectableGroup()) {
-                        listOf("支出" to false, "收入" to true).forEach { (label, income) ->
+                        listOf(language("支出", "Expense") to false, language("收入", "Income") to true).forEach { (label, income) ->
                             Box(
                                 Modifier.weight(1f).clipSegment(isIncome == income)
                                     .selectable(selected = isIncome == income, enabled = !busy, role = Role.RadioButton) {
@@ -160,7 +176,7 @@ internal fun PendingConfirmDialog(
                         if (normalized.length <= 10 && pendingAmountInput.matches(normalized)) amountText = normalized
                     },
                     enabled = !busy,
-                    label = { Text("金额（元）") },
+                    label = { Text(language("金额（元）", "Amount (CNY)")) },
                     prefix = { Text("¥") },
                     singleLine = true,
                     shape = MaterialTheme.shapes.small,
@@ -168,17 +184,29 @@ internal fun PendingConfirmDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
+                if (confirmsDuplicate) {
+                    Text(
+                        language("账本中已有时间相近的同渠道、同金额支出。如果是另一笔，可以仍然入账。", "The ledger has an expense for the same amount and payment provider around this time. Save only if this is a separate payment."),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
                 TextButton(enabled = !busy, onClick = onIgnore) {
-                    Text("忽略此条", color = MaterialTheme.colorScheme.error)
+                    Text(language("忽略此条", "Ignore transaction"), color = MaterialTheme.colorScheme.error)
                 }
             }
         },
         confirmButton = {
             TextButton(enabled = amountCents > 0 && !busy, onClick = { onConfirm(amountCents, isIncome) }) {
-                Text(if (busy) "处理中…" else "确认入账", fontWeight = FontWeight.SemiBold)
+                val label = when {
+                    busy -> language("处理中…", "Processing…")
+                    confirmsDuplicate -> language("仍然入账", "Save anyway")
+                    else -> language("确认入账", "Confirm transaction")
+                }
+                Text(label, fontWeight = FontWeight.SemiBold)
             }
         },
-        dismissButton = { TextButton(enabled = !busy, onClick = onClose) { Text("稍后处理") } },
+        dismissButton = { TextButton(enabled = !busy, onClick = onClose) { Text(language("稍后处理", "Review later")) } },
     )
 }
 
@@ -197,20 +225,21 @@ fun ExportDialog(
     onExportMonth: () -> Unit,
     onExportAll: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("导出账单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(language("导出账单", "Export transactions"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
-                ExportOption("本月账单（$monthLabel）", onExportMonth)
-                ExportOption("全部账单", onExportAll)
+                ExportOption(language("本月账单（$monthLabel）", "This month ($monthLabel)"), onExportMonth)
+                ExportOption(language("全部账单", "All transactions"), onExportAll)
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(language("取消", "Cancel")) }
         },
     )
 }

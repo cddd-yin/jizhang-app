@@ -63,6 +63,7 @@ fun BudgetManageScreen(
     txDao: TxDao,
     onClose: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     val scope = rememberCoroutineScope()
     val budgets by budgetDao.watchAll().collectAsStateWithLifecycle(initialValue = emptyList())
 
@@ -100,9 +101,9 @@ fun BudgetManageScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Outlined.Close, contentDescription = language("关闭", "Close"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("预算管理", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(language("预算管理", "Budgets"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(48.dp))
             }
             LazyColumn(
@@ -116,7 +117,7 @@ fun BudgetManageScreen(
             ) {
                 item(key = "hint") {
                     Text(
-                        "为总支出或单个分类设预算，每月 / 每周自动重置；超支的会变红显示在账本首页。",
+                        language("为总支出或单个分类设预算，每月 / 每周自动重置；超支的会变红显示在账本首页。", "Set an overall or category budget that resets weekly or monthly. Over-budget amounts appear in red on the home page."),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
@@ -146,13 +147,13 @@ fun BudgetManageScreen(
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            b.category.ifEmpty { "总预算" },
+                                            language.category(b.category).ifEmpty { language("总预算", "Overall budget") },
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Medium,
                                             modifier = Modifier.weight(1f),
                                         )
                                         Text(
-                                            Periods.label(b.period),
+                                            language.periodLabel(b.period),
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -168,7 +169,7 @@ fun BudgetManageScreen(
                                     Spacer(Modifier.height(5.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            "已用 ${fmtCents(spent)} / ${fmtCents(b.amountCents)}",
+                                            language("已用 ${fmtCents(spent)} / ${fmtCents(b.amountCents)}", "Spent ${fmtCents(spent)} of ${fmtCents(b.amountCents)}"),
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.weight(1f),
@@ -185,7 +186,7 @@ fun BudgetManageScreen(
                                         com.yang.jizhang.util.BudgetAdvisor.advise(b, spent)
                                     }
                                     Text(
-                                        advice.message,
+                                        language.budgetAdvice(advice),
                                         fontSize = 11.sp,
                                         color = when (advice.pace) {
                                             com.yang.jizhang.util.BudgetAdvisor.Pace.OVER,
@@ -224,7 +225,7 @@ fun BudgetManageScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     ) {
                         Text(
-                            "＋ 新建预算",
+                            language("＋ 新建预算", "＋ New budget"),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
@@ -274,6 +275,7 @@ private fun BudgetEditDialog(
     onSave: (category: String, period: String, cents: Long) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
+    val language = LocalVoyagerLanguage.current
     var category by remember { mutableStateOf(budget?.category ?: "") } // "" = 总预算
     var period by remember { mutableStateOf(budget?.period ?: Periods.MONTHLY) }
     var amountText by remember {
@@ -288,13 +290,13 @@ private fun BudgetEditDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text(if (budget == null) "新建预算" else "编辑预算", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (budget == null) language("新建预算", "New budget") else language("编辑预算", "Edit budget"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 // 周期
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(50), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(4.dp)) {
-                        listOf(Periods.MONTHLY to "每月", Periods.WEEKLY to "每周").forEach { (p, label) ->
+                        listOf(Periods.MONTHLY, Periods.WEEKLY).forEach { p ->
                             Box(
                                 Modifier
                                     .weight(1f)
@@ -305,7 +307,7 @@ private fun BudgetEditDialog(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    label,
+                                    language.periodLabel(p),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = if (period == p) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -315,11 +317,11 @@ private fun BudgetEditDialog(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("适用范围", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(language("适用范围", "Applies to"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
-                (listOf("" to "总预算") + com.yang.jizhang.util.CategoryStore.all(
+                (listOf("" to language("总预算", "Overall budget")) + com.yang.jizhang.util.CategoryStore.all(
                     androidx.compose.ui.platform.LocalContext.current
-                ).map { it to it }).chunked(4).forEach { rowCats ->
+                ).map { it to language.category(it) }).chunked(4).forEach { rowCats ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         rowCats.forEach { (cat, label) ->
                             Text(
@@ -349,7 +351,7 @@ private fun BudgetEditDialog(
                     onValueChange = { s ->
                         if (s.length <= 10 && (s.isEmpty() || Regex("""^\d*(\.\d{0,2})?$""").matches(s))) amountText = s
                     },
-                    label = { Text("预算金额（元）") },
+                    label = { Text(language("预算金额（元）", "Budget amount (CNY)")) },
                     prefix = { Text("¥") },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
@@ -360,15 +362,15 @@ private fun BudgetEditDialog(
         },
         confirmButton = {
             TextButton(enabled = valid, onClick = { onSave(category, period, cents) }) {
-                Text("保存", fontWeight = FontWeight.SemiBold)
+                Text(language("保存", "Save"), fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             Row {
                 if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("删除", color = expenseColor()) }
+                    TextButton(onClick = onDelete) { Text(language("删除", "Delete"), color = expenseColor()) }
                 }
-                TextButton(onClick = onDismiss) { Text("取消") }
+                TextButton(onClick = onDismiss) { Text(language("取消", "Cancel")) }
             }
         },
     )

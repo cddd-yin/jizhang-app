@@ -75,9 +75,44 @@ import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.SportsEsports
 import com.yang.jizhang.CategoryRules
+import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.engine.keepalive.ListenerHealth
+import com.yang.jizhang.util.BudgetAdvisor
+import com.yang.jizhang.util.Periods
 import java.util.Calendar
+
+internal fun VoyagerLanguage.sourceLabel(source: String): String = when (source) {
+    Source.MANUAL -> this(source, "Manual")
+    Source.ALIPAY -> this(source, "Alipay")
+    Source.WECHAT -> this(source, "WeChat")
+    Source.IMPORT -> this(source, "Import")
+    Source.RECUR -> this(source, "Recurring")
+    Source.EXTERNAL -> this(source, "External")
+    else -> source
+}
+
+internal fun VoyagerLanguage.periodLabel(period: String): String =
+    this(Periods.label(period), if (period == Periods.WEEKLY) "Weekly" else "Monthly")
+
+internal fun VoyagerLanguage.categoryError(message: String): String = when (message) {
+    "名称需 1-6 个字" -> this(message, "Use 1–6 characters.")
+    "该分类已存在" -> this(message, "This category already exists.")
+    "最多 20 个自定义分类" -> this(message, "You can create up to 20 custom categories.")
+    else -> message
+}
+
+internal fun VoyagerLanguage.budgetAdvice(advice: BudgetAdvisor.Advice): String {
+    if (this != VoyagerLanguage.ENGLISH) return advice.message
+    if (advice.remaining < 0) return "${fmtCents(-advice.remaining)} over budget."
+    val allowance = fmtCents(advice.dailyAllowance)
+    if (advice.pace == BudgetAdvisor.Pace.FAST && advice.projectedDelta > 0) {
+        return "$allowance per day available · projected overage ${fmtCents(advice.projectedDelta)}"
+    }
+    val days = advice.remainingDays
+    val remainingTime = if (days == 1) "1 day left" else "$days days left"
+    return "${fmtCents(advice.remaining)} left · $allowance per day · $remainingTime"
+}
 
 /**
  * v3.0.0 共享组件库：分类圆徽 / 月份切换 / 状态横幅 / 交易行 / 图表 / 预算仪表。
@@ -133,6 +168,7 @@ fun categoryHue(category: String): Color {
 /** 彩色分类圆徽：色相底 + emoji 图标（Expenso 标志性元素） */
 @Composable
 fun CategoryCircle(category: String, size: Dp = 42.dp, modifier: Modifier = Modifier) {
+    val language = LocalVoyagerLanguage.current
     val dark = LocalJzDark.current
     val hue = categoryHue(category)
     Box(
@@ -144,7 +180,7 @@ fun CategoryCircle(category: String, size: Dp = 42.dp, modifier: Modifier = Modi
     ) {
         androidx.compose.material3.Icon(
             categoryIcon(category),
-            contentDescription = category,
+            contentDescription = language.category(category),
             tint = hue,
             modifier = Modifier.size(size * 0.46f),
         )
@@ -206,6 +242,7 @@ fun StatusBanner(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val language = LocalVoyagerLanguage.current
     val needPermission = state == ListenerHealth.DisplayState.NEED_PERMISSION
     val tint = if (needPermission) expenseColor() else warnColor()
     Surface(
@@ -220,8 +257,8 @@ fun StatusBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (needPermission) "自动记账未开启，点此去授权"
-                else "支付监听已断开，点此重新连接",
+                if (needPermission) language("自动记账未开启，点此去授权", "Enable automatic tracking")
+                else language("支付监听已断开，点此重新连接", "Reconnect payment notifications"),
                 fontSize = 13.sp,
                 color = tint,
                 fontWeight = FontWeight.Medium,
@@ -240,9 +277,10 @@ fun TxRow(
     tx: TxEntity,
     showDivider: Boolean,
     onClick: () -> Unit,
-    subLabel: String = "${tx.category} · ${tx.source}",
+    subLabel: String? = null,
     onArchive: (() -> Unit)? = null,
 ) = key(tx.id) {
+    val language = LocalVoyagerLanguage.current
     val actionWidth = 80.dp
     val density = LocalDensity.current
     val limit = with(density) { actionWidth.toPx() }
@@ -263,7 +301,7 @@ fun TxRow(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("归档", color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(language("归档", "Archive"), color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             val drag = if (onArchive != null) {
@@ -292,7 +330,7 @@ fun TxRow(
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TxRowContent(tx, subLabel)
+                TxRowContent(tx, subLabel ?: "${language.category(tx.category)} · ${language.sourceLabel(tx.source)}")
             }
         }
         if (showDivider) {
@@ -306,11 +344,12 @@ fun TxRow(
 
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.TxRowContent(tx: TxEntity, subLabel: String) {
+    val language = LocalVoyagerLanguage.current
     CategoryCircle(tx.category)
     Spacer(Modifier.width(12.dp))
     Column(Modifier.weight(1f)) {
         Text(
-            tx.note.ifBlank { tx.category },
+            tx.note.ifBlank { language.category(tx.category) },
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -330,6 +369,14 @@ private fun androidx.compose.foundation.layout.RowScope.TxRowContent(tx: TxEntit
 
 @Composable
 fun EmptyState(title: String, hint: String, modifier: Modifier = Modifier) {
+    if (LocalJzStyle.current == JzStyle.VOYAGER) {
+        Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     Column(modifier.fillMaxWidth().padding(vertical = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("¥", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
         Spacer(Modifier.height(10.dp))
@@ -423,6 +470,7 @@ fun ExpenseCalendar(
     txs: List<TxEntity>,
     modifier: Modifier = Modifier,
 ) {
+    val language = LocalVoyagerLanguage.current
     val accent = MaterialTheme.colorScheme.primary
     val faint = MaterialTheme.colorScheme.surfaceVariant
     val daySpend = remember(txs, year, month1) {
@@ -451,7 +499,8 @@ fun ExpenseCalendar(
     }
 
     Column(modifier) {
-        val days = listOf("一", "二", "三", "四", "五", "六", "日")
+        val days = if (language == VoyagerLanguage.ENGLISH) listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+            else listOf("一", "二", "三", "四", "五", "六", "日")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             days.forEach {
                 Text(it, fontSize = 11.sp, textAlign = TextAlign.Center,
@@ -488,7 +537,7 @@ fun ExpenseCalendar(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("少", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(language("少", "Less"), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(4.dp))
             listOf(0.45f, 0.30f, 0.55f, 0.80f, 1f).forEachIndexed { i, a ->
                 Box(
@@ -503,7 +552,7 @@ fun ExpenseCalendar(
                 )
             }
             Spacer(Modifier.width(4.dp))
-            Text("多", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(language("多", "More"), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -536,13 +585,14 @@ internal fun ExpenseTrend(
     annual: Boolean = false,
     asLine: Boolean = false,
 ) {
+    val language = LocalVoyagerLanguage.current
     val active = periods.getOrNull(selectedIndex) ?: return
     val scheme = MaterialTheme.colorScheme
     val archive = LocalJzStyle.current == JzStyle.VOYAGER
     val max = (periods.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
     Column(modifier) {
-        val period = if (annual) "${active.first} 年" else active.first
-        Text("${period}支出", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        val period = if (annual) language("${active.first} 年", active.first) else active.first
+        Text(language("${period}支出", "$period spending"), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         Text(
             fmtCents(active.second),
             fontSize = 27.sp,

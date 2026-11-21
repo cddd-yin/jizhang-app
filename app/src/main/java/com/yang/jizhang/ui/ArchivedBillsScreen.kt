@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun ArchivedBillsScreen(dao: TxDao, onClose: () -> Unit) {
+    val language = LocalVoyagerLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bills by remember(dao) { dao.watchArchived() }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -52,7 +53,7 @@ internal fun ArchivedBillsScreen(dao: TxDao, onClose: () -> Unit) {
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                Toast.makeText(context, if (delete) "删除失败，请重试" else "恢复失败，请重试", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (delete) language("删除失败，请重试", "Could not delete the transaction. Try again.") else language("恢复失败，请重试", "Could not restore the transaction. Try again."), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -64,32 +65,37 @@ internal fun ArchivedBillsScreen(dao: TxDao, onClose: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PageTitle("归档账单", Modifier.weight(1f))
-                TextButton(onClick = onClose) { Text("返回") }
+                PageTitle(language("归档账单", "Archived transactions"), Modifier.weight(1f))
+                TextButton(onClick = onClose) { Text(language("返回", "Back")) }
             }
             if (bills.isEmpty()) {
-                EmptyState("暂无归档账单", "在账单上左滑即可归档")
+                EmptyState(language("暂无归档账单", "No archived transactions"), language("在账单上左滑即可归档", "Swipe left on a transaction to archive it."))
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(bills, key = { it.id }) { tx ->
-                        val date = remember(tx.time) { DateFormat.getDateInstance().format(Date(tx.time)) }
+                        val date = remember(tx.time, language) {
+                            val formatter = if (language == VoyagerLanguage.ENGLISH) {
+                                DateFormat.getDateInstance(DateFormat.DEFAULT, language.locale)
+                            } else DateFormat.getDateInstance()
+                            formatter.format(Date(tx.time))
+                        }
                         Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text(tx.note.ifBlank { tx.category }, style = MaterialTheme.typography.titleMedium)
+                                Text(tx.note.ifBlank { language.category(tx.category) }, style = MaterialTheme.typography.titleMedium)
                                 Text(fmtSigned(tx.amountCents, tx.isIncome), style = MaterialTheme.typography.displayMedium,
                                     color = if (tx.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface)
                                 Text(
-                                    listOf(date, tx.category, tx.source).joinToString(" · "),
+                                    listOf(date, language.category(tx.category), language.sourceLabel(tx.source)).joinToString(" · "),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    TextButton(onClick = { modify(tx, delete = false) }) { Text("恢复") }
+                                    TextButton(onClick = { modify(tx, delete = false) }) { Text(language("恢复", "Restore")) }
                                     TextButton(onClick = { pendingDelete = tx }) {
-                                        Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                                        Text(language("彻底删除", "Delete permanently"), color = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
@@ -103,15 +109,15 @@ internal fun ArchivedBillsScreen(dao: TxDao, onClose: () -> Unit) {
     pendingDelete?.let { tx ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("彻底删除账单？") },
-            text = { Text("删除后无法恢复，这笔账单也会从统计和预算中移除。") },
+            title = { Text(language("彻底删除账单？", "Delete this transaction permanently?")) },
+            text = { Text(language("删除后无法恢复，这笔账单也会从统计和预算中移除。", "This removes the transaction from statistics and budgets. You can't restore it.")) },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDelete = null
                     modify(tx, delete = true)
-                }) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+                }) { Text(language("彻底删除", "Delete permanently"), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(language("取消", "Cancel")) } },
         )
     }
 }

@@ -2,8 +2,11 @@ package com.yang.jizhang.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +23,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,9 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
+import java.time.Month
+import java.time.format.TextStyle
 import java.util.Calendar
 
 /**
@@ -49,6 +53,7 @@ import java.util.Calendar
  * 月模式：本月结余总览 + 近 6 个月支出柱状图 + 收入分类占比环 + 本月支出分类条。
  * 年模式：年度结余总览 + 近 6 年支出柱状图 + 年度收入分类占比环 + 年度支出分类条。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StatsTab(
     txs: List<TxEntity>,
@@ -58,6 +63,7 @@ fun StatsTab(
     month: Int,
     onMonthChange: (Int, Int) -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     var mode by rememberSaveable { mutableStateOf("month") }
     val chartPalette = chartColors()
     val isYear = mode == "year"
@@ -85,16 +91,21 @@ fun StatsTab(
         }
         (0 until 6).map {
             val start = cal.timeInMillis
-            val label = "${cal.get(Calendar.MONTH) + 1}月"
+            val monthNumber = cal.get(Calendar.MONTH) + 1
             cal.add(Calendar.MONTH, 1)
-            Triple(start, cal.timeInMillis, label)
+            Triple(start, cal.timeInMillis, monthNumber)
         }
     }
     val sixMonthTxs by dao.watchSince(months.first().first)
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
-    val expenseByMonth = remember(sixMonthTxs, months) {
-        months.map { (start, end, label) ->
+    val expenseByMonth = remember(sixMonthTxs, months, language) {
+        months.map { (start, end, monthNumber) ->
+            val label = if (language == VoyagerLanguage.ENGLISH) {
+                Month.of(monthNumber).getDisplayName(TextStyle.SHORT, language.locale)
+            } else {
+                "${monthNumber}月"
+            }
             label to sixMonthTxs.filter { !it.isIncome && it.time in start until end }.sumOf { it.amountCents }
         }
     }
@@ -175,11 +186,15 @@ fun StatsTab(
     ) {
         item(key = "header") {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-                PageTitle(if (archive) "收支档案" else "统计")
+                if (archive) VoyagerPageHeading(language("收支档案", "Ledger Stats")) else PageTitle("统计")
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     MonthSwitcher(
-                        title = if (isYear) "$year 年" else "$year 年 $month 月",
+                        title = if (isYear) language("$year 年", "$year") else language.month(year, month),
                         onPrev = {
                             if (isYear) onMonthChange(year - 1, month)
                             else if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1)
@@ -188,9 +203,11 @@ fun StatsTab(
                             if (isYear) onMonthChange(year + 1, month)
                             else if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1)
                         },
+                        modifier = Modifier.align(Alignment.CenterVertically),
                     )
-                    Spacer(Modifier.weight(1f))
-                    ModeToggle(isYear) { mode = if (it) "year" else "month" }
+                    ModeToggle(isYear, Modifier.align(Alignment.CenterVertically)) {
+                        mode = if (it) "year" else "month"
+                    }
                 }
             }
         }
@@ -202,29 +219,33 @@ fun StatsTab(
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             ) {
-                Box {
-                    if (archive) VoyagerStarMotif(Modifier.matchParentSize().alpha(0.36f))
-                    Column(Modifier.padding(18.dp)) {
-                        val balance = viewIncome - viewExpense
-                        Text(
-                            if (isYear) "年度结余" else "结余",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        AnimatedAmountText(
-                            cents = balance,
-                            fontSize = 30.sp,
-                            fontFamily = if (archive) FontFamily.Serif else null,
-                            color = if (balance >= 0) incomeColor() else expenseColor(),
-                        )
+                Column(Modifier.padding(18.dp)) {
+                    val balance = viewIncome - viewExpense
+                    Text(
+                        if (isYear) language("年度结余", "Annual balance") else language("结余", "Balance"),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    AnimatedAmountText(
+                        cents = balance,
+                        fontSize = 30.sp,
+                        fontFamily = if (archive) MaterialTheme.typography.displayMedium.fontFamily else null,
+                        color = if (balance >= 0) incomeColor() else expenseColor(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (archive) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            "支出 ${fmtCents(viewExpense)} · 收入 ${fmtCents(viewIncome)} · 共 ${viewTxs.size} 笔",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
+                    Text(
+                        language(
+                            "支出 ${fmtCents(viewExpense)} · 收入 ${fmtCents(viewIncome)} · 共 ${viewTxs.size} 笔",
+                            "Expenses ${fmtCents(viewExpense)} · Income ${fmtCents(viewIncome)} · ${viewTxs.size} total",
+                        ),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -232,8 +253,9 @@ fun StatsTab(
         // ── 支出趋势柱状 ──
         item(key = "bar_label") {
             ChartDisplayControl(
-                title = if (isYear) "近 6 年支出" else "近 6 个月支出",
-                first = "柱状", second = "折线", secondSelected = lineTrend,
+                title = if (isYear) language("近 6 年支出", "Spending over 6 years")
+                    else language("近 6 个月支出", "Spending over 6 months"),
+                first = language("柱状", "Bar"), second = language("折线", "Line"), secondSelected = lineTrend,
                 onSelect = {
                     lineTrend = it
                     chartPreferences.edit().putBoolean("line_trend", it).apply()
@@ -260,7 +282,7 @@ fun StatsTab(
 
         // ── 消费日历热力图（v3.10.0，仅月模式） ──
         if (!isYear) {
-            item(key = "calendar_label") { SectionLabel("$month 月消费日历") }
+            item(key = "calendar_label") { SectionLabel(language("$month 月消费日历", "Spending calendar")) }
             item(key = "calendar_card") {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -273,13 +295,13 @@ fun StatsTab(
                         Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "浅 → 深 = 当日支出由少到多",
+                                language("浅 → 深 = 当日支出由少到多", "Darker means more spending"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                "今日加边框",
+                                language("今日加边框", "Today outlined"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -291,7 +313,7 @@ fun StatsTab(
 
         // ── 月度对比（v3.10.0，仅月模式：本月 vs 上月分类涨跌） ──
         if (!isYear) {
-            item(key = "compare_label") { SectionLabel("对比上月") }
+            item(key = "compare_label") { SectionLabel(language("对比上月", "Spending vs. last month")) }
             item(key = "compare_card") {
                 val lastMonthRange = remember(year, month) {
                     val cal = Calendar.getInstance().apply {
@@ -324,13 +346,15 @@ fun StatsTab(
                         val delta = thisTotal - lastTotal
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("本月支出 ${fmtCents(thisTotal)}", fontSize = 13.sp)
-                                Text("上月支出 ${fmtCents(lastTotal)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(language("本月支出 ${fmtCents(thisTotal)}", "This month ${fmtCents(thisTotal)}"),
+                                    fontSize = 13.sp)
+                                Text(language("上月支出 ${fmtCents(lastTotal)}", "Last month ${fmtCents(lastTotal)}"),
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(
-                                if (lastTotal == 0L) "上月无记录"
+                                if (lastTotal == 0L) language("上月无记录", "No expenses last month")
                                 else (if (delta >= 0) "▲ +" else "▼ -") + fmtCents(Math.abs(delta)) +
-                                    "（%+.0f%%".format(if (lastTotal > 0) delta.toFloat() / lastTotal * 100 else 0f) + "）",
+                                    language("（%+.0f%%）", " (%+.0f%%)").format(delta.toFloat() / lastTotal * 100),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (delta > 0) expenseColor() else incomeColor(),
@@ -355,7 +379,7 @@ fun StatsTab(
                                 ) {
                                     CategoryCircle(cat, size = 28.dp)
                                     Spacer(Modifier.width(9.dp))
-                                    Text(cat, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                    Text(language.category(cat), fontSize = 14.sp, modifier = Modifier.weight(1f))
                                     Text(
                                         "${fmtCents(before)} → ${fmtCents(now)}",
                                         fontSize = 12.sp,
@@ -378,7 +402,8 @@ fun StatsTab(
 
         // ── 收入分类占比 ──
         item(key = "pie_label") {
-            SectionLabel(if (isYear) "收入分类（本年）" else "收入分类（近 6 个月）")
+            SectionLabel(if (isYear) language("收入分类（本年）", "Income by category · This year")
+                else language("收入分类（近 6 个月）", "Income by category · Last 6 months"))
         }
         val incomeTop = if (isYear) incomeTopYear else incomeTopMonth
         if (incomeTop.isEmpty()) {
@@ -389,7 +414,7 @@ fun StatsTab(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(
-                        "暂无收入记录",
+                        language("暂无收入记录", "No income recorded"),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
@@ -401,7 +426,7 @@ fun StatsTab(
             item(key = "pie_card") {
                 val incomeTotalView = incomeTop.sumOf { it.second }
                 val pieData = incomeTop.mapIndexed { i, (cat, cents, _) ->
-                    ChartEntry(cat, cents.toDouble(), chartPalette[i % chartPalette.size])
+                    ChartEntry(language.category(cat), cents.toDouble(), chartPalette[i % chartPalette.size])
                 }
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -429,7 +454,12 @@ fun StatsTab(
                                             .background(chartPalette[i % chartPalette.size]),
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text(cat, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                    Text(
+                                        language.category(cat),
+                                        fontSize = 13.sp,
+                                        maxLines = if (language == VoyagerLanguage.ENGLISH) 2 else 1,
+                                        modifier = Modifier.weight(1f),
+                                    )
                                     Text(fmtCents(cents), style = MaterialTheme.typography.displaySmall, fontSize = 13.sp)
                                     Spacer(Modifier.width(6.dp))
                                     Text(
@@ -448,8 +478,9 @@ fun StatsTab(
         // ── 支出分类 ──
         item(key = "cat_label") {
             ChartDisplayControl(
-                title = if (isYear) "支出分类（本年）" else "支出分类（本月）",
-                first = "排名", second = "扇形", secondSelected = expensePie,
+                title = if (isYear) language("支出分类（本年）", "Spending by category · This year")
+                    else language("支出分类（本月）", "Spending by category · This month"),
+                first = language("排名", "Rank"), second = language("扇形", "Pie"), secondSelected = expensePie,
                 onSelect = {
                     expensePie = it
                     chartPreferences.edit().putBoolean("expense_pie", it).apply()
@@ -466,7 +497,7 @@ fun StatsTab(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(
-                        "暂无支出记录",
+                        language("暂无支出记录", "No expenses recorded"),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
@@ -484,7 +515,7 @@ fun StatsTab(
                     Column(Modifier.padding(vertical = 6.dp)) {
                         if (expensePie) {
                             val slices = byCategory.mapIndexed { index, (label, amount, _) ->
-                                ChartEntry(label, amount.toDouble(), chartPalette[index % chartPalette.size])
+                                ChartEntry(language.category(label), amount.toDouble(), chartPalette[index % chartPalette.size])
                             }
                             PieChart(
                                 data = slices,
@@ -506,11 +537,12 @@ fun StatsTab(
                                 Spacer(Modifier.width(11.dp))
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(cat, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                        Text(language.category(cat), fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.weight(1f))
                                         Text(fmtCents(cents), style = MaterialTheme.typography.displaySmall, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.width(8.dp))
                                         Text(
-                                            "$count 笔",
+                                            language("$count 笔", "$count total"),
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -589,16 +621,24 @@ private fun ChartDisplayControl(
 
 /** 月 / 年模式切换（胶囊分段） */
 @Composable
-private fun ModeToggle(yearSelected: Boolean, onSelect: (Boolean) -> Unit) =
-    ChartChoice("月", "年", yearSelected, onSelect)
+private fun ModeToggle(yearSelected: Boolean, modifier: Modifier, onSelect: (Boolean) -> Unit) {
+    val language = LocalVoyagerLanguage.current
+    ChartChoice(language("月", "Month"), language("年", "Year"), yearSelected, onSelect, modifier)
+}
 
 @Composable
-private fun ChartChoice(first: String, second: String, secondSelected: Boolean, onSelect: (Boolean) -> Unit) {
+private fun ChartChoice(
+    first: String,
+    second: String,
+    secondSelected: Boolean,
+    onSelect: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val shape = MaterialTheme.shapes.large
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = shape,
-
+        modifier = modifier,
     ) {
         Row(Modifier.padding(4.dp).selectableGroup()) {
             listOf(false to first, true to second).forEach { (isYear, label) ->

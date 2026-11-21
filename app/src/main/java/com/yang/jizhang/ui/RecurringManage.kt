@@ -52,8 +52,9 @@ import com.yang.jizhang.data.RecurringEntity
 import com.yang.jizhang.util.Periods
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.DayOfWeek
+import java.time.format.TextStyle
 import java.util.Date
-import java.util.Locale
 
 /**
  * 周期记账（v3.1.0）：房租、订阅等固定收支按周/月自动入账（补账引擎见 RecurringHelper）。
@@ -63,6 +64,7 @@ fun RecurringManageScreen(
     recurringDao: RecurringDao,
     onClose: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     val scope = rememberCoroutineScope()
     val rules by recurringDao.watchAll().collectAsStateWithLifecycle(initialValue = emptyList())
     var editing by remember { mutableStateOf<RecurringEntity?>(null) }
@@ -80,9 +82,9 @@ fun RecurringManageScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Outlined.Close, contentDescription = language("关闭", "Close"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("周期记账", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(language("周期记账", "Recurring transactions"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(48.dp))
             }
             LazyColumn(
@@ -95,7 +97,7 @@ fun RecurringManageScreen(
             ) {
                 item(key = "hint") {
                     Text(
-                        "到点自动入账（含错过的补账）；App 打开或后台心跳时执行，无需保持界面。",
+                        language("到点自动入账（含错过的补账）；App 打开或后台心跳时执行，无需保持界面。", "Scheduled transactions, including missed ones, are added automatically when the app opens or runs a background check."),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
@@ -108,7 +110,7 @@ fun RecurringManageScreen(
                             shape = MaterialTheme.shapes.large,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            EmptyState("还没有周期规则", "房租、工资、订阅这类固定收支，设一次每期自动记")
+                            EmptyState(language("还没有周期规则", "No recurring transactions"), language("房租、工资、订阅这类固定收支，设一次每期自动记", "Set up rent, salary, or subscriptions to record them automatically."))
                         }
                     }
                 }
@@ -126,13 +128,11 @@ fun RecurringManageScreen(
                             CategoryCircle(r.category)
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(r.title.ifBlank { r.category }, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Text(r.title.ifBlank { language.category(r.category) }, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                val anchorLabel = language.recurringAnchor(r.period, r.anchor)
+                                val nextDate = language.recurringDate(Periods.nextAnchorAt(r.period, r.anchor))
                                 Text(
-                                    "${Periods.anchorLabel(r.period, r.anchor)} · 下次 ${
-                                        SimpleDateFormat("M月d日", Locale.CHINA).format(
-                                            Date(Periods.nextAnchorAt(r.period, r.anchor))
-                                        )
-                                    }",
+                                    language("$anchorLabel · 下次 $nextDate", "$anchorLabel · Next: $nextDate"),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -145,7 +145,7 @@ fun RecurringManageScreen(
                                     color = if (r.isIncome) incomeColor() else MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
-                                    if (r.enabled) "已启用" else "已停用",
+                                    if (r.enabled) language("已启用", "On") else language("已停用", "Off"),
                                     fontSize = 11.sp,
                                     color = if (r.enabled) incomeColor() else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -165,7 +165,7 @@ fun RecurringManageScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     ) {
                         Text(
-                            "＋ 新建周期规则",
+                            language("＋ 新建周期规则", "＋ New recurring transaction"),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
@@ -225,6 +225,7 @@ private fun RecurringEditDialog(
     onSave: (title: String, amountCents: Long, isIncome: Boolean, category: String, note: String, period: String, anchor: Int) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
+    val language = LocalVoyagerLanguage.current
     var isIncome by remember { mutableStateOf(rule?.isIncome ?: false) }
     var title by remember { mutableStateOf(rule?.title ?: "") }
     var note by remember { mutableStateOf(rule?.note ?: "") }
@@ -243,13 +244,13 @@ private fun RecurringEditDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text(if (rule == null) "新建周期规则" else "编辑周期规则", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (rule == null) language("新建周期规则", "Add recurring transaction") else language("编辑周期规则", "Edit recurring transaction"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 // 收支分段
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(50), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(4.dp)) {
-                        listOf(false to "支出", true to "收入").forEach { (income, label) ->
+                        listOf(false to language("支出", "Expense"), true to language("收入", "Income")).forEach { (income, label) ->
                             Box(
                                 Modifier
                                     .weight(1f)
@@ -273,7 +274,7 @@ private fun RecurringEditDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { if (it.length <= 20) title = it },
-                    label = { Text("名称（如 房租 / 视频会员）") },
+                    label = { Text(language("名称（如 房租 / 视频会员）", "Name (e.g. Rent)")) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -284,7 +285,7 @@ private fun RecurringEditDialog(
                     onValueChange = { s ->
                         if (s.length <= 10 && (s.isEmpty() || Regex("""^\d*(\.\d{0,2})?$""").matches(s))) amountText = s
                     },
-                    label = { Text("每期金额（元）") },
+                    label = { Text(language("每期金额（元）", "Amount per entry (CNY)")) },
                     prefix = { Text("¥") },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
@@ -293,7 +294,7 @@ private fun RecurringEditDialog(
                 )
                 Spacer(Modifier.height(10.dp))
                 // 分类
-                Text("分类", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(language("分类", "Category"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
                 com.yang.jizhang.util.CategoryStore.all(
                     androidx.compose.ui.platform.LocalContext.current
@@ -301,7 +302,7 @@ private fun RecurringEditDialog(
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         rowCats.forEach { cat ->
                             Text(
-                                cat,
+                                language.category(cat),
                                 fontSize = 12.sp,
                                 fontWeight = if (category == cat) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (category == cat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -325,7 +326,7 @@ private fun RecurringEditDialog(
                 // 周期
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(50), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(4.dp)) {
-                        listOf(Periods.MONTHLY to "每月", Periods.WEEKLY to "每周").forEach { (p, label) ->
+                        listOf(Periods.MONTHLY, Periods.WEEKLY).forEach { p ->
                             Box(
                                 Modifier
                                     .weight(1f)
@@ -339,7 +340,7 @@ private fun RecurringEditDialog(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    label,
+                                    language.periodLabel(p),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = if (period == p) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -351,7 +352,7 @@ private fun RecurringEditDialog(
                 Spacer(Modifier.height(8.dp))
                 // 锚点选择
                 Text(
-                    if (period == Periods.WEEKLY) "每周几执行" else "每月几号执行",
+                    if (period == Periods.WEEKLY) language("每周几执行", "Day of the week") else language("每月几号执行", "Day of the month"),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -361,7 +362,7 @@ private fun RecurringEditDialog(
                         Periods.WEEK_NAMES.forEachIndexed { i, name ->
                             val day = i + 1
                             Text(
-                                name,
+                                language(name, DayOfWeek.of(day).getDisplayName(TextStyle.SHORT, language.locale)),
                                 fontSize = 13.sp,
                                 fontWeight = if (anchor == day) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (anchor == day) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -404,7 +405,7 @@ private fun RecurringEditDialog(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "下次执行：" + SimpleDateFormat("M月d日", Locale.CHINA).format(Date(Periods.nextAnchorAt(period, anchor))),
+                    language("下次执行：", "Next entry: ") + language.recurringDate(Periods.nextAnchorAt(period, anchor)),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -412,7 +413,7 @@ private fun RecurringEditDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { if (it.length <= 30) note = it },
-                    label = { Text("备注（可选）") },
+                    label = { Text(language("备注（可选）", "Note (optional)")) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -423,16 +424,28 @@ private fun RecurringEditDialog(
             TextButton(enabled = valid && title.isNotBlank(), onClick = {
                 onSave(title.trim(), cents, isIncome, category, note.trim(), period, anchor)
             }) {
-                Text("保存", fontWeight = FontWeight.SemiBold)
+                Text(language("保存", "Save"), fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             Row {
                 if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("删除", color = expenseColor()) }
+                    TextButton(onClick = onDelete) { Text(language("删除", "Delete"), color = expenseColor()) }
                 }
-                TextButton(onClick = onDismiss) { Text("取消") }
+                TextButton(onClick = onDismiss) { Text(language("取消", "Cancel")) }
             }
         },
     )
 }
+
+private fun VoyagerLanguage.recurringAnchor(period: String, anchor: Int): String {
+    if (this != VoyagerLanguage.ENGLISH) return Periods.anchorLabel(period, anchor)
+    if (period == Periods.WEEKLY) {
+        val day = DayOfWeek.of(anchor.coerceIn(1, 7)).getDisplayName(TextStyle.FULL, locale)
+        return "Every $day"
+    }
+    return "Monthly on day ${anchor.coerceIn(1, 28)}"
+}
+
+private fun VoyagerLanguage.recurringDate(time: Long): String =
+    SimpleDateFormat(this("M月d日", "MMM d"), locale).format(Date(time))

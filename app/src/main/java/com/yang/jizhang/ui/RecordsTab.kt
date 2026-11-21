@@ -38,13 +38,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import com.yang.jizhang.data.TxEntity
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 
 /**
  * 明细页：月份切换 + 搜索（备注/分类/来源）+ 分类筛选 + 按日分组账单。
@@ -69,16 +66,18 @@ fun RecordsTab(
     onItemClick: (TxEntity) -> Unit,
     onArchive: (TxEntity) -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     val voyager = LocalJzStyle.current == JzStyle.VOYAGER
     val showOverview = voyager && WindowInsets.ime.getBottom(LocalDensity.current) == 0
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var categoryFilter by rememberSaveable { mutableStateOf("") }
-    val filtered = remember(txs, searchQuery, categoryFilter) {
+    val filtered = remember(txs, searchQuery, categoryFilter, language) {
         val q = searchQuery.trim()
         txs.filter { tx ->
             val matchQuery = q.isEmpty() ||
                 tx.note.contains(q, ignoreCase = true) ||
                 tx.category.contains(q, ignoreCase = true) ||
+                (language == VoyagerLanguage.ENGLISH && language.category(tx.category).contains(q, ignoreCase = true)) ||
                 tx.source.contains(q, ignoreCase = true)
             val matchCategory = categoryFilter.isEmpty() || tx.category == categoryFilter
             matchQuery && matchCategory
@@ -94,13 +93,14 @@ fun RecordsTab(
         // 顶部：大标题 + 月份切换 + 搜索
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(12.dp))
-            PageTitle("账单", if (voyager) Modifier.semantics { heading() } else Modifier)
+            val title = language("账单", "Transactions")
+            if (voyager) VoyagerPageHeading(title) else PageTitle(title)
             Spacer(Modifier.height(12.dp))
             val previousMonth = { if (month == 1) onMonthChange(year - 1, 12) else onMonthChange(year, month - 1) }
             val nextMonth = { if (month == 12) onMonthChange(year + 1, 1) else onMonthChange(year, month + 1) }
             if (showOverview) {
                 VoyagerMonthOverview(
-                    period = "$year 年 $month 月",
+                    period = language.month(year, month),
                     expense = expenseTotal,
                     income = incomeTotal,
                     onPrevious = previousMonth,
@@ -108,7 +108,7 @@ fun RecordsTab(
                 )
             } else if (!voyager) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MonthSwitcher("$year 年 $month 月", previousMonth, nextMonth)
+                    MonthSwitcher(language.month(year, month), previousMonth, nextMonth)
                     Spacer(Modifier.weight(1f))
                     Text(
                         "支 ${fmtCents(expenseTotal)} · 收 ${fmtCents(incomeTotal)}",
@@ -127,18 +127,20 @@ fun RecordsTab(
             // 分类筛选（v3.2）：横向 chips，与搜索叠加过滤
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 item {
-                    FilterChip("全部", categoryFilter.isEmpty()) { categoryFilter = "" }
+                    FilterChip(language("全部", "All"), categoryFilter.isEmpty()) { categoryFilter = "" }
                 }
                 items(com.yang.jizhang.CategoryRules.ALL_CATEGORIES.size) { i ->
                     val cat = com.yang.jizhang.CategoryRules.ALL_CATEGORIES[i]
-                    FilterChip(cat, categoryFilter == cat) { categoryFilter = if (categoryFilter == cat) "" else cat }
+                    FilterChip(language.category(cat), categoryFilter == cat) {
+                        categoryFilter = if (categoryFilter == cat) "" else cat
+                    }
                 }
             }
             Spacer(Modifier.height(2.dp))
         }
 
         // 分组列表
-        val groups = remember(filtered) { groupByDay(filtered) }
+        val groups = remember(filtered, language) { groupByDay(filtered, language) }
         val powerSaving = LocalPowerSaving.current
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -156,9 +158,16 @@ fun RecordsTab(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     ) {
                         if (searchQuery.isBlank() && categoryFilter.isBlank()) {
-                            EmptyState("本月暂无记录", "点右下角 + 记一笔，支付后也会自动记录")
+                            EmptyState(
+                                language("本月暂无记录", "No transactions this month"),
+                                language("点右下角 + 记一笔，支付后也会自动记录",
+                                    "Tap + to add a transaction, or let payment notifications add it automatically"),
+                            )
                         } else {
-                            EmptyState("没有匹配的记录", "试试清空搜索或分类筛选")
+                            EmptyState(
+                                language("没有匹配的记录", "No matching transactions"),
+                                language("试试清空搜索或分类筛选", "Try clearing the search or category filter"),
+                            )
                         }
                     }
                 }
@@ -228,22 +237,20 @@ private fun VoyagerMonthOverview(
     onNext: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val language = LocalVoyagerLanguage.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = scheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        color = scheme.surface,
     ) {
-        Box {
-            VoyagerStarMotif(Modifier.matchParentSize().alpha(0.52f))
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                MonthSwitcher(period, onPrevious, onNext)
-                Spacer(Modifier.height(5.dp))
-                HorizontalDivider(color = scheme.outlineVariant)
-                Spacer(Modifier.height(9.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    VoyagerMonthAmount("支出", expense, Modifier.weight(1f))
-                    VoyagerMonthAmount("收入", income, Modifier.weight(1f))
-                }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            MonthSwitcher(period, onPrevious, onNext)
+            Spacer(Modifier.height(7.dp))
+            HorizontalDivider(color = scheme.outlineVariant)
+            Spacer(Modifier.height(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                VoyagerMonthAmount(language("支出", "Expenses"), expense, Modifier.weight(1f))
+                VoyagerMonthAmount(language("收入", "Income"), income, Modifier.weight(1f))
             }
         }
     }
@@ -253,13 +260,14 @@ private fun VoyagerMonthOverview(
 private fun VoyagerMonthAmount(label: String, amount: Long, modifier: Modifier) {
     Column(modifier) {
         Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(fmtCents(amount), fontSize = 20.sp, fontFamily = FontFamily.Serif)
+        Text(fmtCents(amount), fontSize = 20.sp, fontFamily = MaterialTheme.typography.displayMedium.fontFamily)
     }
 }
 
 @Composable
 private fun VoyagerDayHeading(group: DayGroup) {
     val scheme = MaterialTheme.colorScheme
+    val language = LocalVoyagerLanguage.current
     Column(
         Modifier.fillMaxWidth().background(scheme.background)
             .padding(start = 5.dp, end = 5.dp, top = 12.dp, bottom = 7.dp),
@@ -268,17 +276,19 @@ private fun VoyagerDayHeading(group: DayGroup) {
             Text(
                 group.label,
                 fontSize = 16.sp,
-                fontFamily = FontFamily.Serif,
+                fontFamily = MaterialTheme.typography.titleLarge.fontFamily,
                 color = scheme.onBackground,
                 modifier = Modifier.weight(1f).semantics { heading() },
             )
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                 if (group.expense > 0) {
-                    Text("支 ${fmtCents(group.expense)}", fontSize = 12.sp, textAlign = TextAlign.End,
+                    Text(language("支 ${fmtCents(group.expense)}", "Out ${fmtCents(group.expense)}"),
+                        fontSize = 12.sp, textAlign = TextAlign.End,
                         color = scheme.onSurfaceVariant)
                 }
                 if (group.income > 0) {
-                    Text("收 ${fmtCents(group.income)}", fontSize = 12.sp, textAlign = TextAlign.End,
+                    Text(language("收 ${fmtCents(group.income)}", "In ${fmtCents(group.income)}"),
+                        fontSize = 12.sp, textAlign = TextAlign.End,
                         color = incomeColor())
                 }
             }
@@ -290,8 +300,8 @@ private fun VoyagerDayHeading(group: DayGroup) {
 
 private data class DayGroup(val key: Int, val label: String, val items: List<TxEntity>, val expense: Long, val income: Long)
 
-private fun groupByDay(txs: List<TxEntity>): List<DayGroup> {
-    val dayFormat = SimpleDateFormat("M月d日 EEEE", Locale.CHINA)
+private fun groupByDay(txs: List<TxEntity>, language: VoyagerLanguage): List<DayGroup> {
+    val dayFormat = SimpleDateFormat(language("M月d日 EEEE", "EEE, MMM d"), language.locale)
     return txs
         .groupBy { dayKey(it.time) }
         .map { (key, list) ->
@@ -321,7 +331,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
         color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(if (LocalJzStyle.current == JzStyle.VOYAGER) MaterialTheme.shapes.extraSmall else RoundedCornerShape(50))
             .background(
                 if (selected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceVariant
@@ -340,6 +350,7 @@ private fun SearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val language = LocalVoyagerLanguage.current
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.medium,
@@ -366,7 +377,7 @@ private fun SearchField(
                     Box {
                         if (value.isEmpty()) {
                             Text(
-                                "搜索备注 / 分类 / 来源",
+                                language("搜索备注 / 分类 / 来源", "Search notes, category, or source"),
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -379,7 +390,7 @@ private fun SearchField(
                 IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "清空",
+                        contentDescription = language("清空", "Clear search"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )

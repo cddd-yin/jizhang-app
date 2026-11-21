@@ -3,4 +3,6 @@
     <string name="listener_label">Voyager · 支付通知监听</string>
     <string name="widget_desc">本月支出 / 收入 / 结余一览，一键记账</string>
     <string name="tile_record">记一笔</string>
+    <string name="screen_payment_service_name">Voyager · 支付结果页识别</string>
+    <string name="screen_payment_service_description">在 Voyager 内开启后，识别微信和支付宝当前可读的支付成功页。金额、来源、时间和用于去重的单号摘要保存在本机，账单由你确认后入账。</string>
 </resources>

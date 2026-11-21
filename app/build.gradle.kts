@@ -13,8 +13,8 @@ android {
         applicationId = "com.yang.jizhang"
         minSdk = 26
         targetSdk = 35
-        versionCode = 56
-        versionName = "5.8.5"
+        versionCode = 60
+        versionName = "5.9.0"
     }
 
     buildTypes {

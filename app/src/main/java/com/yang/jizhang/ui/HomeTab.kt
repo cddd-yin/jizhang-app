@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.HorizontalDivider
@@ -39,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.shadow
@@ -49,9 +50,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,6 +63,7 @@ import com.yang.jizhang.data.TxDao
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.util.Periods
+import java.time.YearMonth
 import java.util.Calendar
 
 /**
@@ -74,28 +76,31 @@ fun HomeTab(
     budgetDao: BudgetDao,
     contentPad: PaddingValues,
     listenerState: ListenerHealth.DisplayState,
+    screenTracking: Boolean,
     pendingCount: Int,
     onOpenReview: () -> Unit,
     onEdit: (TxEntity) -> Unit,
     onGoRecords: () -> Unit,
+    onOpenIssue: (Int, Int) -> Unit,
     onOpenBudgets: () -> Unit,
     onArchive: (TxEntity) -> Unit,
 ) {
     val context = LocalContext.current
+    val language = LocalVoyagerLanguage.current
     val voyager = LocalJzStyle.current == JzStyle.VOYAGER
 
     // 「本月」随日历翻转（v3.6.0 修复：跨月零点后结余/预算仍停在旧月的粘滞问题）
-    var monthStamp by remember { mutableIntStateOf(currentMonthStamp()) }
+    var dayStamp by remember { mutableIntStateOf(currentDayStamp()) }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(60_000)
-            val s = currentMonthStamp()
-            if (s != monthStamp) monthStamp = s
+            dayStamp = currentDayStamp()
         }
     }
+    val monthStamp = dayStamp / 100
     val yearNow = monthStamp / 100
     val monthNow = monthStamp % 100
-    val monthLabel = "$yearNow 年 $monthNow 月"
+    val monthLabel = language.month(yearNow, monthNow)
 
     // 当前自然月全量流水（结余口径）与最近交易（列表口径）分开取
     val monthRange = remember(monthStamp) { com.yang.jizhang.CategoryRules.monthRange(yearNow, monthNow) }
@@ -112,6 +117,21 @@ fun HomeTab(
 
     val expenseTotal = monthTxs.sumOf { if (it.isIncome) 0L else it.amountCents }
     val incomeTotal = monthTxs.sumOf { if (it.isIncome) it.amountCents else 0L }
+    val dailyExpenses = remember(voyager, monthStamp, monthTxs) {
+        if (!voyager) emptyList() else {
+            val days = MutableList(YearMonth.of(yearNow, monthNow).lengthOfMonth()) { 0L }
+            val calendar = Calendar.getInstance()
+            for (tx in monthTxs) {
+                if (tx.isIncome) continue
+                calendar.timeInMillis = tx.time
+                if (calendar.get(Calendar.YEAR) == yearNow && calendar.get(Calendar.MONTH) + 1 == monthNow) {
+                    val index = calendar.get(Calendar.DAY_OF_MONTH) - 1
+                    days[index] += tx.amountCents
+                }
+            }
+            days
+        }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize().then(if (voyager) Modifier.statusBarsPadding() else Modifier),
@@ -122,13 +142,15 @@ fun HomeTab(
     ) {
         item(key = "header") {
             if (voyager) {
-                VoyagerHomeHeader(monthLabel, incomeTotal, expenseTotal)
+                VoyagerHomeHeader(monthLabel, incomeTotal, expenseTotal, dailyExpenses, dayStamp % 100) {
+                    onOpenIssue(yearNow, monthNow)
+                }
             } else {
                 Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-                    PageTitle("账本")
+                    PageTitle(language("账本", "Ledger"))
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "$monthLabel · 花完钱自动记账",
+                        language("$monthLabel · 花完钱自动记账", "$monthLabel · Automatic tracking"),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -136,7 +158,7 @@ fun HomeTab(
             }
         }
 
-        if (listenerState != ListenerHealth.DisplayState.CONNECTED) {
+        if (!screenTracking && listenerState != ListenerHealth.DisplayState.CONNECTED) {
             item(key = "banner") {
                 StatusBanner(
                     state = listenerState,
@@ -166,10 +188,10 @@ fun HomeTab(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("$pendingCount 条待确认账单", fontWeight = FontWeight.SemiBold)
-                            Text("核对金额和收支后入账", style = MaterialTheme.typography.bodySmall)
+                            Text(language("$pendingCount 条待确认账单", "Transactions to review: $pendingCount"), fontWeight = FontWeight.SemiBold)
+                            Text(language("核对金额和收支后入账", "Review the amount and transaction type before saving"), style = MaterialTheme.typography.bodySmall)
                         }
-                        Text("查看 ›", fontSize = 13.sp)
+                        Text(language("查看 ›", "Review ›"), fontSize = 13.sp)
                     }
                 }
             }
@@ -201,7 +223,7 @@ fun HomeTab(
                 )
                 Column(fill.padding(if (style == JzStyle.ORIGIN_OS) 22.dp else 18.dp)) {
                     Text(
-                        "本月结余",
+                        language("本月结余", "Monthly balance"),
                         fontSize = 13.sp,
                         color = cardText.copy(alpha = 0.85f),
                     )
@@ -224,7 +246,7 @@ fun HomeTab(
                         FlowStat(
                             icon = { Icon(Icons.Rounded.ArrowUpward, null, tint = cardText, modifier = Modifier.size(16.dp)) },
                             iconBg = cardText.copy(alpha = 0.16f),
-                            label = "收入",
+                            label = language("收入", "Income"),
                             amount = fmtCents(incomeTotal),
                             amountColor = cardText,
                             modifier = Modifier.weight(1f),
@@ -238,7 +260,7 @@ fun HomeTab(
                         FlowStat(
                             icon = { Icon(Icons.Rounded.ArrowDownward, null, tint = cardText, modifier = Modifier.size(16.dp)) },
                             iconBg = cardText.copy(alpha = 0.16f),
-                            label = "支出",
+                            label = language("支出", "Expenses"),
                             amount = fmtCents(expenseTotal),
                             amountColor = cardText,
                             modifier = Modifier.weight(1f),
@@ -266,14 +288,14 @@ fun HomeTab(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "最近交易",
-                    fontFamily = if (voyager) FontFamily.Serif else null,
+                    language("最近交易", "Recent transactions"),
+                    fontFamily = if (voyager) MaterialTheme.typography.titleLarge.fontFamily else null,
                     fontSize = if (voyager) 20.sp else 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f).then(if (voyager) Modifier.semantics { heading() } else Modifier),
                 )
                 Text(
-                    "全部 ›",
+                    language("全部 ›", "See all ›"),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(onClick = onGoRecords).padding(4.dp),
@@ -288,7 +310,10 @@ fun HomeTab(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         .shadow(if (voyager) 0.dp else 3.dp, MaterialTheme.shapes.large),
                 ) {
-                    EmptyState("还没有记录", "点右下角 + 记一笔，支付后也会自动记录")
+                    EmptyState(
+                        language("还没有记录", "No transactions yet"),
+                        language("点右下角 + 记一笔，支付后也会自动记录", "Tap + to add a transaction. Payments may also be recorded automatically."),
+                    )
                 }
             }
         } else {
@@ -301,7 +326,7 @@ fun HomeTab(
                 ) {
                     Column {
                         recent.forEachIndexed { i, tx ->
-                            val day = remember(tx.id) { formatDay(tx.time) }
+                            val day = remember(tx.id, language) { formatDay(tx.time, language) }
                             TxRow(
                                 tx = tx,
                                 showDivider = i < recent.lastIndex,
@@ -327,14 +352,19 @@ fun HomeTab(
     }
 }
 
-private fun currentMonthStamp(): Int {
+private fun currentDayStamp(): Int {
     val c = Calendar.getInstance()
-    return c.get(Calendar.YEAR) * 100 + c.get(Calendar.MONTH) + 1
+    return c.get(Calendar.YEAR) * 10_000 + (c.get(Calendar.MONTH) + 1) * 100 + c.get(Calendar.DAY_OF_MONTH)
 }
 
-private fun formatDay(millis: Long): String {
+private fun formatDay(millis: Long, language: VoyagerLanguage): String {
     val cal = Calendar.getInstance().apply { timeInMillis = millis }
     val now = Calendar.getInstance()
+    if (language == VoyagerLanguage.ENGLISH) {
+        val today = cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+            cal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
+        return java.text.SimpleDateFormat(if (today) "'Today' HH:mm" else "MMM d HH:mm", language.locale).format(millis)
+    }
     return when {
         cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
             cal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) -> "今天 " +
@@ -344,40 +374,60 @@ private fun formatDay(millis: Long): String {
     }
 }
 
-private val VoyagerNight = Color(0xFF17182D)
 internal val VoyagerGold = Color(0xFFE5C38A)
 internal val VoyagerIvory = Color(0xFFF6F0FC)
 
 @Composable
-private fun VoyagerHomeHeader(period: String, income: Long, expense: Long) {
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp)) {
-        Column(Modifier.padding(horizontal = 7.dp, vertical = 7.dp)) {
-            PageTitle("Voyager", Modifier.semantics { heading() })
-            Text(period, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-        }
-        Spacer(Modifier.height(11.dp))
-        Surface(
-            color = VoyagerNight,
-            contentColor = VoyagerIvory,
-            shape = MaterialTheme.shapes.extraLarge,
-            border = BorderStroke(1.dp, Color(0xFF6D5C97)),
-        ) {
-            Box(
-                Modifier.fillMaxWidth().clipToBounds()
-                    .background(Brush.linearGradient(listOf(Color(0xFF241C45), Color(0xFF3D2C67), Color(0xFF17182F)))),
+private fun VoyagerHomeHeader(
+    period: String,
+    income: Long,
+    expense: Long,
+    dailyExpenses: List<Long>,
+    today: Int,
+    onOpen: () -> Unit,
+) {
+    val language = LocalVoyagerLanguage.current
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+        color = scheme.surface,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, scheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                VoyagerStarMotif(Modifier.matchParentSize())
-                Column(Modifier.fillMaxWidth().padding(horizontal = 23.dp, vertical = 21.dp)) {
-                    Text("本月结余", fontSize = 13.sp, color = VoyagerGold)
-                    Spacer(Modifier.height(8.dp))
-                    val balance = income - expense
-                    Text(
-                        if (balance < 0) "-${fmtCents(balance)}" else fmtCents(balance),
-                        fontSize = 44.sp, color = VoyagerIvory, fontFamily = FontFamily.Serif,
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = VoyagerGold.copy(alpha = 0.34f))
-                    VoyagerCashFlow(income, expense)
+                Text(period, modifier = Modifier.weight(1f), color = scheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleMedium)
+                VoyagerPvWordmark(
+                    modifier = Modifier.width(108.dp),
+                    tint = if (LocalJzDark.current) null else scheme.primary,
+                )
+            }
+            VoyagerMusicStaff(Modifier.fillMaxWidth(), fullPhrase = true)
+            Text(language("本月结余", "Monthly balance"), Modifier.padding(top = 5.dp), color = scheme.onSurfaceVariant, fontSize = 13.sp)
+            val balance = income - expense
+            Text(
+                (if (balance < 0) "−" else "") + fmtCents(balance),
+                style = MaterialTheme.typography.displayLarge,
+                fontSize = 40.sp,
+                color = scheme.onSurface,
+            )
+            VoyagerCashFlow(income, expense)
+            HorizontalDivider(color = scheme.outlineVariant)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onOpen),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                VoyagerExpenseRegister(dailyExpenses, today, Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(language("本月明细", "This month"), color = scheme.primary, style = MaterialTheme.typography.labelMedium)
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null,
+                        tint = scheme.primary, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -385,18 +435,50 @@ private fun VoyagerHomeHeader(period: String, income: Long, expense: Long) {
 }
 
 @Composable
+private fun VoyagerExpenseRegister(expenses: List<Long>, today: Int, modifier: Modifier = Modifier) {
+    val language = LocalVoyagerLanguage.current
+    val scheme = MaterialTheme.colorScheme
+    val peak = expenses.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+    val spentDays = expenses.count { it > 0L }
+    Column(modifier.padding(vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(language("每日支出", "Daily spending"), style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+            Text(language("${today}日", "Day $today"), style = MaterialTheme.typography.labelMedium, color = scheme.primary)
+        }
+        Canvas(Modifier.fillMaxWidth().padding(top = 3.dp).height(18.dp).semantics {
+            contentDescription = language("本月已有 ${spentDays} 天记有支出", "Days with expenses this month: $spentDays")
+        }) {
+            val cellWidth = size.width / expenses.size
+            val quiet = scheme.onSurfaceVariant.copy(alpha = .46f)
+            expenses.forEachIndexed { index, amount ->
+                val active = index + 1 == today
+                val fraction = (amount.toDouble() / peak).coerceIn(0.0, 1.0).toFloat()
+                val height = if (amount == 0L) 2.dp.toPx() else 5.dp.toPx() + (size.height - 5.dp.toPx()) * fraction
+                val barWidth = cellWidth * .57f
+                drawRect(
+                    color = if (active) scheme.primary else if (amount > 0L) scheme.onSurfaceVariant else quiet,
+                    topLeft = Offset(cellWidth * index + (cellWidth - barWidth) / 2, size.height - height),
+                    size = androidx.compose.ui.geometry.Size(barWidth, height),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun VoyagerCashFlow(income: Long, expense: Long) {
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 13.dp)) {
+    val language = LocalVoyagerLanguage.current
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
         val scale = LocalDensity.current.fontScale
         if (maxWidth < (244 * scale).dp) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                VoyagerTotal("本月收入", income)
-                VoyagerTotal("本月支出", expense)
+                VoyagerTotal(language("本月收入", "Monthly income"), income)
+                VoyagerTotal(language("本月支出", "Monthly expenses"), expense)
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                VoyagerTotal("本月收入", income, Modifier.weight(1f))
-                VoyagerTotal("本月支出", expense, Modifier.weight(1f))
+                VoyagerTotal(language("本月收入", "Monthly income"), income, Modifier.weight(1f))
+                VoyagerTotal(language("本月支出", "Monthly expenses"), expense, Modifier.weight(1f))
             }
         }
     }
@@ -405,9 +487,8 @@ private fun VoyagerCashFlow(income: Long, expense: Long) {
 @Composable
 private fun VoyagerTotal(label: String, cents: Long, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, fontSize = 12.sp, color = VoyagerGold)
-        Spacer(Modifier.height(3.dp))
-        Text(fmtCents(cents), fontFamily = FontFamily.Serif, fontSize = 20.sp, color = VoyagerIvory)
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(fmtCents(cents), style = MaterialTheme.typography.displaySmall, fontSize = 19.sp)
     }
 }
 
@@ -486,6 +567,7 @@ private fun BudgetCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val language = LocalVoyagerLanguage.current
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.large,
@@ -500,7 +582,7 @@ private fun BudgetCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "预算",
+                    language("预算", "Budgets"),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -524,10 +606,10 @@ private fun BudgetCard(
 
             if (progresses.isEmpty()) {
                 Spacer(Modifier.height(6.dp))
-                Text("设置预算", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(language("设置预算", "Set a budget"), fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "总预算或分类预算，每月 / 每周自动重置",
+                    language("总预算或分类预算，每月 / 每周自动重置", "Set an overall or category budget that resets weekly or monthly"),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -548,7 +630,7 @@ private fun BudgetCard(
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "总预算 · " + Periods.label(total.budget.period) + (if (over) " · 已超支" else ""),
+                                language("总预算 · ", "Overall budget · ") + Periods.label(total.budget.period) + (if (over) language(" · 已超支", " · Over budget") else ""),
                                 fontSize = 12.sp,
                                 color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -565,12 +647,12 @@ private fun BudgetCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            "已支 ${fmtCents(total.spent)}",
+                            language("已支 ${fmtCents(total.spent)}", "Spent ${fmtCents(total.spent)}"),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            "预算 ${fmtCents(total.budget.amountCents)}",
+                            language("预算 ${fmtCents(total.budget.amountCents)}", "Budget ${fmtCents(total.budget.amountCents)}"),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -615,7 +697,7 @@ private fun BudgetCard(
                                             modifier = Modifier.weight(1f),
                                         )
                                         Text(
-                                            "${Periods.label(p.budget.period)} · 已用 ${fmtCents(p.spent)} / ${fmtCents(p.budget.amountCents)}",
+                                            language("${Periods.label(p.budget.period)} · 已用 ${fmtCents(p.spent)} / ${fmtCents(p.budget.amountCents)}", "${language.periodLabel(p.budget.period)} · ${fmtCents(p.spent)} of ${fmtCents(p.budget.amountCents)}"),
                                             fontSize = 11.sp,
                                             color = if (over) expenseColor() else MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -636,7 +718,7 @@ private fun BudgetCard(
                             }
                         }
                         Text(
-                            "管理预算 ›",
+                            language("管理预算 ›", "Manage budgets ›"),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.align(Alignment.End).padding(top = 4.dp),

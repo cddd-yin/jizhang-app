@@ -71,6 +71,7 @@ import com.yang.jizhang.data.Source
 import com.yang.jizhang.data.TxEntity
 import com.yang.jizhang.data.PendingBill
 import com.yang.jizhang.engine.AutoBookEngine
+import com.yang.jizhang.engine.payment.ScreenPaymentMonitor
 import com.yang.jizhang.engine.keepalive.ChannelIds
 import com.yang.jizhang.engine.keepalive.ListenerHealth
 import com.yang.jizhang.engine.BillExporter
@@ -92,11 +93,13 @@ fun AppRoot() {
     val pendingDao = db.pendingBillDao()
     val pendingFlow = remember(pendingDao) { pendingDao.watchAll() }
     val pending by pendingFlow.collectAsStateWithLifecycle(initialValue = null)
+    val screenConnected by ScreenPaymentMonitor.connected.collectAsStateWithLifecycle()
     var reviewOpen by rememberSaveable { mutableStateOf(false) }
     var reviewId by rememberSaveable { mutableStateOf<Long?>(null) }
     var reviewBusy by remember { mutableStateOf(false) }
     var reviewFeedback by remember { mutableStateOf<String?>(null) }
     var reviewError by remember { mutableStateOf<String?>(null) }
+    var reviewDuplicate by remember(reviewId) { mutableStateOf<Pair<Long, Boolean>?>(null) }
     val openReview = {
         reviewFeedback = null
         reviewError = null
@@ -108,6 +111,10 @@ fun AppRoot() {
     var themePreset by remember { mutableStateOf(ThemePrefs.preset(context)) }
     var themeMode by remember { mutableStateOf(ThemePrefs.mode(context)) }
     var themeStyle by remember { mutableStateOf(ThemePrefs.style(context)) }
+    var savedThemeFont by remember { mutableStateOf(ThemePrefs.font(context)) }
+    val themeFont = savedThemeFont ?: if (themeStyle == JzStyle.VOYAGER) JzFontChoice.ARCHIVE else JzFontChoice.DEFAULT
+    var voyagerEnglish by remember { mutableStateOf(ThemePrefs.voyagerEnglish(context)) }
+    val language = if (themeStyle == JzStyle.VOYAGER && voyagerEnglish) VoyagerLanguage.ENGLISH else VoyagerLanguage.CHINESE
     var customSeed by remember { mutableStateOf(ThemePrefs.customSeed(context)) }
 
     var displaySettings by remember { mutableStateOf(DisplayPrefs.read(context)) }
@@ -150,7 +157,8 @@ fun AppRoot() {
     }
     JizhangTheme(
         darkTheme = darkTheme, preset = themePreset, style = themeStyle,
-        customSeed = customSeed, powerSaving = powerSaving,
+        customSeed = customSeed, powerSaving = powerSaving, font = themeFont,
+        voyagerEnglish = voyagerEnglish,
     ) {
 
     // ── 交互基础（v3.3.0）──
@@ -174,12 +182,12 @@ fun AppRoot() {
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                snackbarHostState.showSnackbar("归档失败，请重试")
+                snackbarHostState.showSnackbar(language("归档失败，请重试", "Couldn't archive. Try again."))
                 return@launch
             }
             val result = snackbarHostState.showSnackbar(
-                message = "账单已归档",
-                actionLabel = "撤销",
+                message = language("账单已归档", "Transaction archived"),
+                actionLabel = language("撤销", "Undo"),
                 duration = androidx.compose.material3.SnackbarDuration.Long,
             )
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
@@ -188,7 +196,7 @@ fun AppRoot() {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    snackbarHostState.showSnackbar("恢复失败，请在归档页重试")
+                    snackbarHostState.showSnackbar(language("恢复失败，请在归档页重试", "Couldn't restore. Try again in Archive."))
                 }
             }
         }
@@ -287,7 +295,7 @@ fun AppRoot() {
                     else -> MaterialTheme.shapes.large
                 },
             ) {
-                Icon(Icons.Rounded.Add, contentDescription = "记一笔", modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.Add, contentDescription = language("记一笔", "Add transaction"), modifier = Modifier.size(26.dp))
             }
         },
         bottomBar = { JzBottomBar(tab, hazeState, themeStyle) { tab = it } },
@@ -301,8 +309,13 @@ fun AppRoot() {
                     androidx.compose.animation.EnterTransition.None.togetherWith(androidx.compose.animation.ExitTransition.None)
                         .using(null)
                 } else if (themeStyle == JzStyle.VOYAGER) {
-                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200))
-                        .togetherWith(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)))
+                    val enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200))
+                    val leaf = if (initialState == 0 && targetState == 1) {
+                        enter + androidx.compose.animation.slideInHorizontally(
+                            androidx.compose.animation.core.tween(240),
+                        ) { it / 12 }
+                    } else enter
+                    leaf.togetherWith(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)))
                         .using(null)
                 } else (
                     androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
@@ -321,10 +334,16 @@ fun AppRoot() {
                     budgetDao = (context.applicationContext as JizhangApp).db.budgetDao(),
                     contentPad = pad,
                     listenerState = listenerState.value,
+                    screenTracking = screenConnected && ScreenPaymentMonitor.isEnabled(context),
                     pendingCount = pending.orEmpty().size,
                     onOpenReview = openReview,
                     onEdit = { editing = it },
                     onGoRecords = { tab = 1 },
+                    onOpenIssue = { issueYear, issueMonth ->
+                        year = issueYear
+                        month = issueMonth
+                        tab = 1
+                    },
                     onOpenBudgets = { showBudgets = true },
                     onArchive = archiveWithUndo,
                 )
@@ -356,6 +375,16 @@ fun AppRoot() {
                     themePreset = themePreset,
                     themeMode = themeMode,
                     themeStyle = themeStyle,
+                    voyagerEnglish = voyagerEnglish,
+                    onVoyagerLanguageChange = { enabled ->
+                        voyagerEnglish = enabled
+                        ThemePrefs.saveVoyagerEnglish(context, enabled)
+                    },
+                    themeFont = themeFont,
+                    onFontChange = { font ->
+                        savedThemeFont = font
+                        ThemePrefs.saveFont(context, font)
+                    },
                     displaySettings = displaySettings,
                     onDisplayChange = { settings ->
                         displaySettings = settings
@@ -387,19 +416,19 @@ fun AppRoot() {
     if (reviewOpen && !adding && editing == null && !showExport && !showBudgets && !showRecurring && !showArchive) {
         val bills = pending
         val selected = bills?.firstOrNull { it.id == reviewId }
-        fun submitReview(bill: PendingBill, update: suspend () -> String) {
+        fun submitReview(bill: PendingBill, update: suspend () -> String?) {
             if (reviewBusy) return
             reviewBusy = true
             reviewError = null
             scope.launch {
                 try {
-                    reviewFeedback = update()
+                    reviewFeedback = update() ?: return@launch
                     reviewId = null
                     runCatching { ChannelIds.cancelReview(context, bill.id) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    reviewError = "操作未完成，请重试"
+                    reviewError = language("操作未完成，请重试", "Couldn't complete the action. Try again.")
                 } finally {
                     reviewBusy = false
                 }
@@ -411,24 +440,32 @@ fun AppRoot() {
                 pending = selected,
                 busy = reviewBusy,
                 error = reviewError,
+                possibleDuplicate = reviewDuplicate,
                 onClose = { reviewError = null; reviewId = null },
                 onConfirm = { amount, income ->
                     submitReview(selected) {
-                        if (AutoBookEngine.confirm(context, selected.id, amount, income)) "已入账"
-                        else "这条账单已处理"
+                        val details = amount to income
+                        when (AutoBookEngine.confirm(context, selected.id, amount, income, allowPossibleDuplicate = reviewDuplicate == details)) {
+                            AutoBookEngine.ReviewResult.SAVED -> language("已入账", "Transaction saved")
+                            AutoBookEngine.ReviewResult.ALREADY_HANDLED -> language("这条账单已处理", "Transaction already reviewed")
+                            AutoBookEngine.ReviewResult.POSSIBLE_DUPLICATE -> {
+                                reviewDuplicate = details
+                                null
+                            }
+                        }
                     }
                 },
                 onIgnore = {
                     submitReview(selected) {
-                        if (pendingDao.markHandled(selected.id, System.currentTimeMillis()) > 0) "已忽略这条账单"
-                        else "这条账单已处理"
+                        if (pendingDao.markHandled(selected.id, System.currentTimeMillis()) > 0) language("已忽略这条账单", "Transaction dismissed")
+                        else language("这条账单已处理", "Transaction already reviewed")
                     }
                 },
             )
         } else if (bills != null) {
             PendingBillsDialog(
                 bills = bills,
-                feedback = reviewFeedback ?: if (reviewId != null && !reviewBusy) "这条账单已处理" else null,
+                feedback = reviewFeedback ?: if (reviewId != null && !reviewBusy) language("这条账单已处理", "Transaction already reviewed") else null,
                 onSelect = { if (!reviewBusy) { reviewFeedback = null; reviewId = it } },
                 onClose = { if (!reviewBusy) { reviewOpen = false; reviewId = null } },
             )
@@ -483,20 +520,20 @@ fun AppRoot() {
     // 导出菜单
     if (showExport) {
         ExportDialog(
-            monthLabel = "$year 年 $month 月",
+            monthLabel = language.month(year, month),
             onDismiss = { showExport = false },
             onExportMonth = {
                 showExport = false
                 scope.launch {
                     val uri = BillExporter.export(context, range[0], range[1] - 1)
-                    handleExportResult(context, uri)
+                    handleExportResult(context, uri, language)
                 }
             },
             onExportAll = {
                 showExport = false
                 scope.launch {
                     val uri = BillExporter.exportAll(context)
-                    handleExportResult(context, uri)
+                    handleExportResult(context, uri, language)
                 }
             },
         )
@@ -524,11 +561,11 @@ fun AppRoot() {
     } // JizhangTheme
 }
 
-internal fun handleExportResult(context: Context, uri: Uri?) {
+internal fun handleExportResult(context: Context, uri: Uri?, language: VoyagerLanguage) {
     if (uri != null) {
         BillExporter.share(context, uri)
     } else {
-        Toast.makeText(context, "没有可导出的账单记录", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, language("没有可导出的账单记录", "No transactions to export"), Toast.LENGTH_LONG).show()
     }
 }
 
@@ -564,12 +601,13 @@ private fun JzBottomBar(
     style: JzStyle = JzStyle.GLASS,
     onSelect: (Int) -> Unit,
 ) {
-    val items = remember {
+    val language = LocalVoyagerLanguage.current
+    val items = remember(language) {
         listOf(
-            JzTabItem("账本", Icons.Outlined.Home),
-            JzTabItem("明细", Icons.AutoMirrored.Outlined.ReceiptLong),
-            JzTabItem("统计", Icons.Outlined.PieChart),
-            JzTabItem("设置", Icons.Outlined.Settings),
+            JzTabItem(language("账本", "Ledger"), Icons.Outlined.Home),
+            JzTabItem(language("明细", "Transactions"), Icons.AutoMirrored.Outlined.ReceiptLong),
+            JzTabItem(language("统计", "Insights"), Icons.Outlined.PieChart),
+            JzTabItem(language("设置", "Settings"), Icons.Outlined.Settings),
         )
     }
     val scheme = MaterialTheme.colorScheme
@@ -650,7 +688,7 @@ private fun RowScope.JzTabCell(item: JzTabItem, style: JzStyle, selected: Boolea
             Modifier
                 .size(width = 52.dp, height = 28.dp)
                 .then(
-                    if (selected && (style.indicator == TabIndicator.PILL || style.indicator == TabIndicator.VOYAGER)) Modifier.background(
+                    if (selected && style.indicator == TabIndicator.PILL) Modifier.background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         CircleShape,
                     ) else Modifier

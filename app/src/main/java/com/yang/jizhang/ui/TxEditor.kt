@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yang.jizhang.CategoryRules
@@ -65,6 +66,7 @@ fun TxEditor(
     draft: ShareDraftItem? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val language = LocalVoyagerLanguage.current
     var isIncome by remember { mutableStateOf(tx?.isIncome ?: (draft?.isIncome ?: false)) }
     var category by remember {
         mutableStateOf(
@@ -106,12 +108,13 @@ fun TxEditor(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Outlined.Close, contentDescription = language("关闭", "Close"), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
-                    if (tx == null) "记一笔" else "编辑账单",
+                    if (tx == null) language("记一笔", "Add transaction") else language("编辑账单", "Edit transaction"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                 )
@@ -119,7 +122,7 @@ fun TxEditor(
                     IconButton(onClick = onArchive) {
                         Icon(
                             Icons.Outlined.Archive,
-                            contentDescription = "归档",
+                            contentDescription = language("归档", "Archive"),
                             tint = expenseColor(),
                         )
                     }
@@ -140,7 +143,7 @@ fun TxEditor(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Outlined.Check, contentDescription = "保存", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Outlined.Check, contentDescription = language("保存", "Save"), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
 
@@ -160,14 +163,14 @@ fun TxEditor(
                 ) {
                     Row(Modifier.padding(5.dp)) {
                         SegOption(
-                            "支出", Icons.Outlined.ArrowDownward, !isIncome,
+                            language("支出", "Expense"), Icons.Outlined.ArrowDownward, !isIncome,
                             Modifier.weight(1f),
                         ) {
                             isIncome = false
                             if (category == "收入进账") category = "餐饮美食"
                         }
                         SegOption(
-                            "收入", Icons.Outlined.ArrowUpward, isIncome,
+                            language("收入", "Income"), Icons.Outlined.ArrowUpward, isIncome,
                             Modifier.weight(1f),
                         ) {
                             isIncome = true
@@ -180,7 +183,7 @@ fun TxEditor(
 
                 // ── 分类选择 ──
                 Text(
-                    "分类",
+                    language("分类", "Category"),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -234,7 +237,7 @@ fun TxEditor(
                             Box {
                                 if (note.isEmpty()) {
                                     Text(
-                                        "备注（可选）",
+                                        language("备注（可选）", "Note (optional)"),
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -282,7 +285,7 @@ fun TxEditor(
                         }
                         if (amountText.isNotEmpty()) {
                             Text(
-                                "清空",
+                                language("清空", "Clear"),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -361,6 +364,8 @@ private fun CategoryPick(
     onClick: () -> Unit,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val language = LocalVoyagerLanguage.current
+    val label = if (emoji != null) language("添加", "Add") else language.category(category)
     Column(
         modifier.clickable {
             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
@@ -382,7 +387,7 @@ private fun CategoryPick(
             } else {
                 androidx.compose.material3.Icon(
                     categoryIcon(category),
-                    contentDescription = category,
+                    contentDescription = null,
                     tint = if (selected) readableOn(categoryHue(category)) else categoryHue(category),
                     modifier = Modifier.size(21.dp),
                 )
@@ -390,11 +395,13 @@ private fun CategoryPick(
         }
         Spacer(Modifier.height(5.dp))
         Text(
-            category,
+            label,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = if (language == VoyagerLanguage.ENGLISH) 2 else 1,
+            textAlign = TextAlign.Center,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -407,20 +414,24 @@ private fun Keypad(
     onBackspace: () -> Unit,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val language = LocalVoyagerLanguage.current
+    val english = language == VoyagerLanguage.ENGLISH
+    val keyHeight = if (english) 48.dp else 52.dp
+    val rowSpacing = if (english) 8.dp else 10.dp
     val keys = listOf(
         listOf('1', '2', '3'),
         listOf('4', '5', '6'),
         listOf('7', '8', '9'),
         listOf('.', '0', '⌫'),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(rowSpacing)) {
         keys.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { k ->
                     Box(
                         Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(keyHeight)
                             .clip(MaterialTheme.shapes.medium)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .clickable {
@@ -436,7 +447,7 @@ private fun Keypad(
                         if (k == '⌫') {
                             Icon(
                                 Icons.Outlined.Backspace,
-                                contentDescription = "退格",
+                                contentDescription = language("退格", "Backspace"),
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(22.dp),
                             )
@@ -480,6 +491,7 @@ private fun AddCategoryDialog(
     onDismiss: () -> Unit,
     onAdded: (String) -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     var text by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -487,11 +499,12 @@ private fun AddCategoryDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("添加分类", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(language("添加分类", "Add category"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 Text(
-                    "如：养宠 / 汽车 / 母婴（1-6 个字，最多 20 个）",
+                    language("如：养宠 / 汽车 / 母婴（1-6 个字，最多 20 个）",
+                        "For example, Pets or Car. Use 1–6 characters, up to 20 categories."),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -505,7 +518,7 @@ private fun AddCategoryDialog(
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                     isError = error != null,
-                    supportingText = error?.let { { Text(it, fontSize = 12.sp) } },
+                    supportingText = error?.let { { Text(language.categoryError(it), fontSize = 12.sp) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -521,10 +534,10 @@ private fun AddCategoryDialog(
                         error = err
                     }
                 },
-            ) { Text("添加", fontWeight = FontWeight.SemiBold) }
+            ) { Text(language("添加", "Add"), fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("取消") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(language("取消", "Cancel")) }
         },
     )
 }

@@ -64,9 +64,9 @@ enum class JzStyle(
     internal val blurRadius: Int = 0,
     internal val indicator: TabIndicator = TabIndicator.PILL,
 ) {
-    VOYAGER("Voyager", "蓝紫星空、暖金细节和悬浮导航", shapeSet(6, 12, 18, 24, 32),
-        titleSize = 34, titleWeight = FontWeight.Bold, navRadius = 26, navHeight = 62, navInset = 14,
-        blurRadius = 18, indicator = TabIndicator.VOYAGER),
+    VOYAGER("Voyager", "月账页、五线谱和档案内页", shapeSet(2, 5, 8, 11, 16),
+        titleSize = 32, titleWeight = FontWeight.SemiBold, navRadius = 12, navHeight = 60, navInset = 14,
+        blurRadius = 12, indicator = TabIndicator.VOYAGER),
     GLASS("玻璃", "大圆角卡片和磨砂底栏", shapeSet(8, 12, 16, 22, 28), blurRadius = 22),
     COMPACT("紧凑", "小圆角卡片和实底底栏", shapeSet(6, 8, 12, 14, 18)),
     IOS("苹果 iOS", "大标题、分组卡片和悬浮磨砂底栏", shapeSet(9, 12, 16, 20, 28),
@@ -108,6 +108,17 @@ object ThemePrefs {
     private const val KEY_MODE = "theme_mode"
     private const val KEY_STYLE = "theme_style"
     private const val KEY_SEED = "theme_custom_seed"
+    private const val KEY_FONT = "theme_font"
+    private const val KEY_VOYAGER_ENGLISH = "voyager_english"
+
+    fun voyagerEnglish(context: Context): Boolean =
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .getBoolean(KEY_VOYAGER_ENGLISH, false)
+
+    fun saveVoyagerEnglish(context: Context, enabled: Boolean) {
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_VOYAGER_ENGLISH, enabled).apply()
+    }
 
     fun preset(context: Context): JzPreset =
         runCatching {
@@ -149,6 +160,16 @@ object ThemePrefs {
     fun saveStyle(context: Context, style: JzStyle) {
         context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
             .edit().putString(KEY_STYLE, style.name).apply()
+    }
+
+    fun font(context: Context): JzFontChoice? {
+        val saved = context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE).getString(KEY_FONT, null)
+        return JzFontChoice.entries.firstOrNull { it.name == saved }
+    }
+
+    fun saveFont(context: Context, font: JzFontChoice) {
+        context.getSharedPreferences("jizhang_prefs", Context.MODE_PRIVATE)
+            .edit().putString(KEY_FONT, font.name).apply()
     }
 
     fun saveCustomSeed(context: Context, argb: Int) {
@@ -196,8 +217,8 @@ private class Surfaces(page: Long, card: Long, panel: Long, text: Long, muted: L
     val border = Color(border)
 }
 
-private val voyagerLight = Surfaces(0xFFE2DFF1, 0xFFF4F0FC, 0xFFDED7F0, 0xFF211B37, 0xFF504465, 0xFF86769F)
-private val voyagerDark = Surfaces(0xFF101026, 0xFF211C3B, 0xFF2D2650, 0xFFF7EEFC, 0xFFCFC1DF, 0xFF635584)
+private val voyagerLight = Surfaces(0xFFE7E2D7, 0xFFF5F0E5, 0xFFE2DBCD, 0xFF25262D, 0xFF5D584F, 0xFF9C8A72)
+private val voyagerDark = Surfaces(0xFF151821, 0xFF20242F, 0xFF2A2F3C, 0xFFF1EADC, 0xFFC1BBB1, 0xFF656274)
 private val neutralLight = Surfaces(0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF404040, 0xFF666666, 0xFFE6E6E6)
 private val neutralDark = Surfaces(0xFF171717, 0xFF262626, 0xFF303030, 0xFFE5E5E5, 0xFFA1A1A1, 0xFF2E2E2E)
 private val compactLight = Surfaces(0xFFF3F5F8, 0xFFFCFDFE, 0xFFE7ECF2, 0xFF242E3B, 0xFF4B5768, 0xFFCAD2DE)
@@ -278,18 +299,41 @@ private val Sans = FontFamily(
 
 private val Lato = FontFamily(Font(R.font.lato_regular, FontWeight.Normal))
 
-internal fun JzStyle.typography(): Typography {
-    val body = when (this) {
+private val VoyagerSong = FontFamily(Font(R.font.voyager_song))
+private val VoyagerKai = FontFamily(Font(R.font.voyager_kai))
+private val VoyagerArchiveSong = FontFamily(Font(R.font.voyager_archive_song))
+private val VoyagerArchiveFigures = FontFamily(Font(R.font.voyager_archive_figures))
+
+enum class JzFontChoice(val label: String) {
+    DEFAULT("默认"),
+    SONG("宋体"),
+    KAI("楷体"),
+    ARCHIVE("Voyager · 1999");
+
+    internal val family: FontFamily?
+        get() = when (this) {
+            DEFAULT -> null
+            SONG -> VoyagerSong
+            KAI -> VoyagerKai
+            ARCHIVE -> VoyagerArchiveSong
+        }
+}
+
+internal fun JzStyle.typography(font: JzFontChoice = JzFontChoice.DEFAULT): Typography {
+    val body = when (font) {
+        JzFontChoice.SONG, JzFontChoice.KAI -> font.family
+        else -> null
+    } ?: when (this) {
         JzStyle.PAPER -> FontFamily.Serif
         JzStyle.IOS, JzStyle.COMPACT, JzStyle.INK -> FontFamily.SansSerif
         else -> Sans
     }
-    val heading = when (this) {
+    val heading = font.family ?: when (this) {
         JzStyle.VOYAGER, JzStyle.PAPER -> FontFamily.Serif
         JzStyle.GLASS -> Lato
         else -> body
     }
-    val amounts = when (this) {
+    val amounts = if (font == JzFontChoice.ARCHIVE) VoyagerArchiveFigures else font.family ?: when (this) {
         JzStyle.VOYAGER, JzStyle.PAPER -> FontFamily.Serif
         JzStyle.INK, JzStyle.COMPACT -> FontFamily.Monospace
         JzStyle.IOS -> FontFamily.SansSerif
@@ -363,6 +407,8 @@ fun JizhangTheme(
     style: JzStyle = JzStyle.VOYAGER,
     customSeed: Int? = null,
     powerSaving: Boolean = false,
+    font: JzFontChoice = JzFontChoice.DEFAULT,
+    voyagerEnglish: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val scheme = when {
@@ -390,11 +436,16 @@ fun JizhangTheme(
     androidx.compose.runtime.CompositionLocalProvider(
         LocalJzDark provides darkTheme,
         LocalJzStyle provides style,
+        LocalVoyagerLanguage provides if (style == JzStyle.VOYAGER && voyagerEnglish) {
+            VoyagerLanguage.ENGLISH
+        } else {
+            VoyagerLanguage.CHINESE
+        },
         LocalPowerSaving provides powerSaving,
     ) {
         MaterialTheme(
             colorScheme = scheme,
-            typography = androidx.compose.runtime.remember(style) { style.typography() },
+            typography = androidx.compose.runtime.remember(style, font) { style.typography(font) },
             shapes = style.shapes,
             content = content,
         )

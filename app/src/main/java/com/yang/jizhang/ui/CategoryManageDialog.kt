@@ -45,6 +45,7 @@ import com.yang.jizhang.util.CategoryStore
  */
 @Composable
 fun CategoryManageDialog(onClose: () -> Unit) {
+    val language = LocalVoyagerLanguage.current
     val context = androidx.compose.ui.platform.LocalContext.current
     var custom by remember { mutableStateOf(CategoryStore.custom(context)) }
     var newName by remember { mutableStateOf("") }
@@ -54,11 +55,11 @@ fun CategoryManageDialog(onClose: () -> Unit) {
         onDismissRequest = onClose,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("管理分类", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(language("管理分类", "Manage categories"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "内置分类（不可删除）",
+                    language("内置分类（不可删除）", "Built-in categories"),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -75,9 +76,9 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                androidx.compose.material3.Icon(categoryIcon(cat), contentDescription = cat, tint = categoryHue(cat), modifier = Modifier.size(13.dp))
+                                androidx.compose.material3.Icon(categoryIcon(cat), contentDescription = null, tint = categoryHue(cat), modifier = Modifier.size(13.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(cat, fontSize = 12.sp, maxLines = 1)
+                                Text(language.category(cat), fontSize = 12.sp, maxLines = 1)
                             }
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -86,14 +87,14 @@ fun CategoryManageDialog(onClose: () -> Unit) {
 
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "自定义分类（${custom.size}/20，删除不影响已有账单）",
+                    language("自定义分类（${custom.size}/20，删除不影响已有账单）", "Custom categories (${custom.size}/20). Deleting a category keeps its transactions."),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(6.dp))
                 if (custom.isEmpty()) {
                     Text(
-                        "还没有自定义分类，在记一笔页点 ➕ 也能添加",
+                        language("还没有自定义分类，在记一笔页点 ➕ 也能添加", "No custom categories yet. You can also add one when recording a transaction."),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -110,7 +111,7 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                         Spacer(Modifier.width(10.dp))
                         Text(cat, fontSize = 15.sp, modifier = Modifier.weight(1f))
                         Text(
-                            "删除",
+                            language("删除", "Delete"),
                             fontSize = 13.sp,
                             color = expenseColor(),
                             modifier = Modifier
@@ -131,11 +132,11 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                         if (it.length <= 6) newName = it
                         error = null
                     },
-                    label = { Text("新分类名（1-6 字）") },
+                    label = { Text(language("新分类名（1-6 字）", "New category name (1–6 characters)")) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     isError = error != null,
-                    supportingText = error?.let { { Text(it, fontSize = 12.sp) } },
+                    supportingText = error?.let { { Text(language.categoryError(it), fontSize = 12.sp) } },
                     keyboardOptions = KeyboardOptions.Default,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -153,10 +154,10 @@ fun CategoryManageDialog(onClose: () -> Unit) {
                         error = err
                     }
                 },
-            ) { Text("添加", fontWeight = FontWeight.SemiBold) }
+            ) { Text(language("添加", "Add"), fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = {
-            TextButton(onClick = onClose) { Text("关闭") }
+            TextButton(onClick = onClose) { Text(language("关闭", "Close")) }
         },
     )
 }

@@ -182,6 +182,14 @@ interface PendingBillDao {
     suspend fun find(id: Long): PendingBill?
 
     @Query("""
+        SELECT EXISTS(SELECT 1 FROM pending_bills
+            WHERE eventKey LIKE 'SCREENPAY|%' AND source = :source AND isIncome = 0
+            AND amountCents = :amountCents AND transactionTime BETWEEN :start AND :end
+            AND handledAt IS NULL)
+    """)
+    suspend fun hasNearbyScreenPayment(source: String, amountCents: Long, start: Long, end: Long): Boolean
+
+    @Query("""
         UPDATE pending_bills
         SET handledAt = :now, merchant = '', reason = NULL, rawSnippet = NULL
         WHERE id = :id AND handledAt IS NULL

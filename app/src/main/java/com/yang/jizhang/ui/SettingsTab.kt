@@ -1,5 +1,6 @@
 package com.yang.jizhang.ui
 
+
 import android.Manifest
 import android.content.ComponentName
 import android.content.Context
@@ -36,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Category
@@ -80,8 +82,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yang.jizhang.engine.BillImporter
 import com.yang.jizhang.engine.keepalive.ListenerHealth
+import com.yang.jizhang.engine.payment.ScreenPaymentMonitor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -100,6 +104,10 @@ internal fun SettingsTab(
     themePreset: JzPreset,
     themeMode: JzMode,
     themeStyle: JzStyle,
+    voyagerEnglish: Boolean,
+    onVoyagerLanguageChange: (Boolean) -> Unit,
+    themeFont: JzFontChoice,
+    onFontChange: (JzFontChoice) -> Unit,
     displaySettings: DisplaySettings,
     onDisplayChange: (DisplaySettings) -> Unit,
     customSeed: Int?,
@@ -108,12 +116,16 @@ internal fun SettingsTab(
     onCustomSeed: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val language = LocalVoyagerLanguage.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var showCategoryManage by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
     var listenerEnabled by remember { mutableStateOf(ListenerHealth.isEnabledInSettings(context)) }
+    var screenPermission by remember { mutableStateOf(ScreenPaymentMonitor.hasPermission(context)) }
+    var screenEnabled by remember { mutableStateOf(ScreenPaymentMonitor.isEnabled(context)) }
+    val screenConnected by ScreenPaymentMonitor.connected.collectAsStateWithLifecycle()
     var postNotificationsGranted by remember { mutableStateOf(isPostNotificationsGranted(context)) }
     var batteryIgnored by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
 
@@ -126,6 +138,8 @@ internal fun SettingsTab(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 listenerEnabled = ListenerHealth.isEnabledInSettings(context)
+                screenPermission = ScreenPaymentMonitor.hasPermission(context)
+                screenEnabled = ScreenPaymentMonitor.isEnabled(context)
                 postNotificationsGranted = isPostNotificationsGranted(context)
                 batteryIgnored = isBatteryOptimizationIgnored(context)
             }
@@ -143,14 +157,14 @@ internal fun SettingsTab(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                BillImporter.Result.Invalid("写入账本失败，请重试")
+                BillImporter.Result.Invalid(language("写入账本失败，请重试", "Couldn't save to the ledger. Try again."))
             } finally {
                 importing = false
             }
             val message = when (result) {
                 is BillImporter.Result.Invalid -> result.message
                 is BillImporter.Result.Imported ->
-                    "新增 ${result.added} 条，重复 ${result.duplicates} 条，跳过 ${result.skipped} 条"
+                    language("新增 ${result.added} 条，重复 ${result.duplicates} 条，跳过 ${result.skipped} 条", "Imported ${result.added}, duplicates ${result.duplicates}, skipped ${result.skipped}")
             }
             android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
             if (result is BillImporter.Result.Imported && result.added > 0) {
@@ -166,15 +180,15 @@ internal fun SettingsTab(
             val result = runCatching { com.yang.jizhang.util.BackupHelper.restoreFull(context, uri) }.getOrNull()
             when {
                 result == null -> android.widget.Toast.makeText(
-                    context, "恢复失败：请选择本 App 导出的完整备份 JSON", android.widget.Toast.LENGTH_LONG
+                    context, language("恢复失败：请选择本 App 导出的完整备份 JSON", "Couldn't restore. Select a full JSON backup from this app."), android.widget.Toast.LENGTH_LONG
                 ).show()
                 result.first + result.second + result.third == 0 -> android.widget.Toast.makeText(
-                    context, "恢复完成：数据均已存在，无新增", android.widget.Toast.LENGTH_LONG
+                    context, language("恢复完成：数据均已存在，无新增", "All backup data is already in this ledger."), android.widget.Toast.LENGTH_LONG
                 ).show()
                 else -> {
                     android.widget.Toast.makeText(
                         context,
-                        "恢复完成：账单 ${result.first} 条 · 预算 ${result.second} 个 · 周期规则 ${result.third} 条",
+                        language("恢复完成：账单 ${result.first} 条 · 预算 ${result.second} 个 · 周期规则 ${result.third} 条", "Restored ${result.first} transactions, ${result.second} budgets and ${result.third} recurring rules"),
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                     com.yang.jizhang.util.BudgetAlertHelper.checkAsync(context)
@@ -192,7 +206,47 @@ internal fun SettingsTab(
             // 底栏 + FAB 避让（v3.5.0 修复：此前末尾条目被底部导航遮挡）
             .padding(bottom = contentPad.calculateBottomPadding() + 96.dp),
     ) {
-        PageTitle("设置", Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+        PageTitle(language("设置", "Settings"), Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+
+        SettingsHeader(language("支付结果页识别", "Payment screen detection"))
+        SettingsCard {
+            val accessibilityGranted = screenPermission || screenConnected
+            val canToggle = accessibilityGranted || screenEnabled
+            GuideItem(
+                icon = Icons.Outlined.AccessibilityNew,
+                title = language("系统无障碍权限", "Accessibility permission"),
+                description = language("在系统设置中开启 Voyager · 支付结果页识别", "Enable Voyager payment screen detection in Android settings"),
+                granted = accessibilityGranted,
+            ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            CardDivider()
+            Row(
+                Modifier.fillMaxWidth().toggleable(
+                    value = screenEnabled,
+                    enabled = canToggle,
+                    role = Role.Switch,
+                    onValueChange = {
+                        ScreenPaymentMonitor.setEnabled(context, it)
+                        screenEnabled = it
+                    },
+                ).padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(language("识别支付成功页", "Detect payment success screens"), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        when {
+                            screenEnabled && screenConnected -> language("运行中，识别结果进入待确认账单", "Running. Detections appear in Pending review.")
+                            screenEnabled -> language("等待系统连接无障碍服务", "Waiting for Android to connect the service.")
+                            else -> language("仅识别微信、支付宝当前可读的结果页，数据留在本机", "Read visible WeChat and Alipay payment results and keep detections on the device.")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = screenEnabled, onCheckedChange = null, enabled = canToggle)
+            }
+        }
 
         // ── 自动记账状态 ──
         Surface(
@@ -205,19 +259,18 @@ internal fun SettingsTab(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val (dot, label) = when (listenerState) {
-                    ListenerHealth.DisplayState.CONNECTED -> incomeColor() to "自动记账运行中"
-                    ListenerHealth.DisplayState.RECOVERING -> warnColor() to "支付监听重连中"
-                    ListenerHealth.DisplayState.NEED_PERMISSION -> expenseColor() to "自动记账未开启"
+                    ListenerHealth.DisplayState.CONNECTED -> incomeColor() to language("通知记账运行中", "Notification tracking is on")
+                    ListenerHealth.DisplayState.RECOVERING -> warnColor() to language("支付监听重连中", "Reconnecting to payment notifications")
+                    ListenerHealth.DisplayState.NEED_PERMISSION -> expenseColor() to language("通知记账未开启", "Notification tracking is off")
                 }
                 Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
                 Spacer(Modifier.width(10.dp))
                 Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
                     when (listenerState) {
-                        ListenerHealth.DisplayState.CONNECTED -> "支付后自动入账"
-                        ListenerHealth.DisplayState.RECOVERING -> "点权限项修复"
-                        ListenerHealth.DisplayState.NEED_PERMISSION -> "开启下方权限"
-                        else -> ""
+                        ListenerHealth.DisplayState.CONNECTED -> language("支付后自动入账", "Record payments automatically")
+                        ListenerHealth.DisplayState.RECOVERING -> language("点权限项修复", "Check permissions below")
+                        ListenerHealth.DisplayState.NEED_PERMISSION -> language("开启下方权限", "Grant notification access below")
                     },
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -226,19 +279,19 @@ internal fun SettingsTab(
         }
 
         // ── 权限引导 ──
-        SettingsHeader("自动记账权限")
+        SettingsHeader(language("通知记账权限", "Notification tracking permissions"))
         SettingsCard {
             GuideItem(
                 icon = Icons.Outlined.NotificationsActive,
-                title = "通知使用权（必须）",
-                description = "读取微信 / 支付宝 / QQ 支付通知，自动识别金额并记账",
+                title = language("通知使用权", "Notification access"),
+                description = language("读取微信 / 支付宝 / QQ 支付通知，自动识别金额并记账", "Read WeChat, Alipay and QQ payment notifications to record transactions"),
                 granted = listenerEnabled,
             ) { openListenerSettings(context) }
             CardDivider()
             GuideItem(
                 icon = Icons.Outlined.Notifications,
-                title = "发送通知（推荐）",
-                description = "显示「已记一笔」和待确认提醒（Android 13+ 需授权）",
+                title = language("发送通知（推荐）", "Show notifications (recommended)"),
+                description = language("显示「已记一笔」和待确认提醒（Android 13+ 需授权）", "Show recorded transactions and review reminders"),
                 granted = postNotificationsGranted,
             ) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -247,7 +300,7 @@ internal fun SettingsTab(
             }
             CardDivider()
             Text(
-                "支付监听由系统在后台运行，连接状态在本页查看。",
+                language("支付监听由系统在后台运行，连接状态在本页查看。", "The system listens for payments in the background. Check its status here."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -255,36 +308,75 @@ internal fun SettingsTab(
             CardDivider()
             GuideItem(
                 icon = Icons.Outlined.PowerSettingsNew,
-                title = "自启动",
-                description = "允许后台自启动，防止支付监听被杀（国产机建议开启）",
+                title = language("自启动", "Auto-start"),
+                description = language("允许后台自启动，防止支付监听被杀（国产机建议开启）", "Let the app start in the background to keep tracking payments"),
                 granted = false,
             ) { openAutoStartSettings(context) }
             CardDivider()
             GuideItem(
                 icon = Icons.Outlined.BatteryChargingFull,
-                title = "忽略电池优化",
-                description = "关闭电池优化，防止监听服务在后台被系统回收",
+                title = language("忽略电池优化", "Battery optimization"),
+                description = language("关闭电池优化，防止监听服务在后台被系统回收", "Exclude the app from battery optimization to keep tracking payments"),
                 granted = batteryIgnored,
             ) { openBatteryOptimization(context) }
         }
 
         // ── 外观（v3.7.0）──
-        SettingsHeader("外观")
+        SettingsHeader(language("外观", "Appearance"))
         SettingsCard {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text("深浅模式", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (themeStyle == JzStyle.VOYAGER) {
+                    Text(language("Voyager 界面语言", "Voyager language"), fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(7.dp))
+                    Row(Modifier.fillMaxWidth().selectableGroup()) {
+                        ModeCell("简体中文", !voyagerEnglish, Modifier.weight(1f)) { onVoyagerLanguageChange(false) }
+                        ModeCell("English", voyagerEnglish, Modifier.weight(1f)) { onVoyagerLanguageChange(true) }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                Text(language("深浅模式", "Color mode"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth().selectableGroup()) {
                     JzMode.entries.forEach { m ->
                         ModeCell(
-                            label = m.label,
+                            label = language.appearance(m.label),
                             selected = themeMode == m,
                             modifier = Modifier.weight(1f),
                         ) { onThemeChange(themePreset, m) }
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                Text("界面风格", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(language("字体", "Typeface"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(7.dp))
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (pair in JzFontChoice.entries.chunked(2)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (font in pair) {
+                                val selected = themeFont == font
+                                Surface(
+                                    modifier = Modifier.weight(1f).selectable(selected, role = Role.RadioButton) { onFontChange(font) },
+                                    shape = MaterialTheme.shapes.small,
+                                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                                ) {
+                                    Column(Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+                                        Text(language.appearance(font.label), fontFamily = font.family ?: themeStyle.typography().titleSmall.fontFamily,
+                                            fontSize = 13.sp)
+                                        if (font == JzFontChoice.ARCHIVE && themeStyle == JzStyle.VOYAGER) {
+                                            VoyagerPvWordmark(Modifier.fillMaxWidth().background(ArchiveInk).padding(horizontal = 3.dp))
+                                        } else {
+                                            Text(language("本月结余", "Monthly balance"), fontFamily = font.family ?: themeStyle.typography().bodyMedium.fontFamily,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(language("界面风格", "Theme"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Column(
                     modifier = Modifier.selectableGroup(),
@@ -303,13 +395,13 @@ internal fun SettingsTab(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    themeStyle.desc,
+                    language.appearance(themeStyle.desc),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 Spacer(Modifier.height(16.dp))
-                Text("强调色", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(language("强调色", "Accent color"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(10.dp))
                 Column(Modifier.selectableGroup()) {
                     JzPreset.entries.chunked(3).forEach { rowPresets ->
@@ -332,7 +424,7 @@ internal fun SettingsTab(
             }
         }
 
-        SettingsHeader("性能与省电")
+        SettingsHeader(language("性能与省电", "Performance and battery"))
         SettingsCard {
             Row(
                 Modifier.fillMaxWidth()
@@ -346,9 +438,9 @@ internal fun SettingsTab(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("省电模式", fontWeight = FontWeight.SemiBold)
+                    Text(language("省电模式", "Battery saver"), fontWeight = FontWeight.SemiBold)
                     Text(
-                        "优先请求 60 Hz 或更低，关闭磨砂和主要动画。后台自动记账照常运行。",
+                        language("优先请求 60 Hz 或更低，关闭磨砂和主要动画。后台自动记账照常运行。", "Use 60 Hz or less and reduce blur and motion. Automatic tracking continues."),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -357,10 +449,10 @@ internal fun SettingsTab(
             }
             CardDivider()
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text("界面刷新率", fontWeight = FontWeight.SemiBold)
+                Text(language("界面刷新率", "Refresh rate"), fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (displaySettings.powerSaving) "省电模式已启用，关闭后恢复所选档位。"
-                    else "实际刷新率由设备和系统决定。",
+                    if (displaySettings.powerSaving) language("省电模式已启用，关闭后恢复所选档位。", "Turn off battery saver to use your selected rate.")
+                    else language("实际刷新率由设备和系统决定。", "The device and Android determine the actual refresh rate."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -370,7 +462,7 @@ internal fun SettingsTab(
                         Row(Modifier.fillMaxWidth()) {
                             rates.forEach { rate ->
                                 ModeCell(
-                                    label = rate.label,
+                                    label = language.appearance(rate.label),
                                     selected = displaySettings.refreshRate == rate,
                                     modifier = Modifier.weight(1f),
                                 ) { onDisplayChange(displaySettings.copy(refreshRate = rate)) }
@@ -383,74 +475,74 @@ internal fun SettingsTab(
         }
 
         // ── 周期记账 ──
-        SettingsHeader("周期记账")
+        SettingsHeader(language("周期记账", "Recurring transactions"))
         SettingsCard {
-            ActionItem(Icons.Outlined.Autorenew, "周期规则", "房租、工资、订阅等固定收支按周/月自动入账") {
+            ActionItem(Icons.Outlined.Autorenew, language("周期规则", "Recurring rules"), language("房租、工资、订阅等固定收支按周/月自动入账", "Automatically record rent, salary and subscriptions weekly or monthly")) {
                 onOpenRecurring()
             }
         }
 
         // ── 数据管理 ──
-        SettingsHeader("数据管理")
+        SettingsHeader(language("数据管理", "Data management"))
         SettingsCard {
             ActionItem(
                 Icons.Outlined.Notifications,
-                "待确认账单",
-                if (pendingCount > 0) "$pendingCount 条待处理" else "暂无待确认账单",
+                language("待确认账单", "Review transactions"),
+                if (pendingCount > 0) language("$pendingCount 条待处理", "Pending: $pendingCount") else language("暂无待确认账单", "Nothing to review"),
                 onOpenReview,
             )
             CardDivider()
             ActionItem(
                 Icons.Outlined.Upload,
-                if (importing) "正在导入账单…" else "导入账单",
-                "支持 CSV、TSV、TXT、Excel (.xlsx / .xlsm) 和 ZIP",
+                if (importing) language("正在导入账单…", "Importing transactions…") else language("导入账单", "Import transactions"),
+                language("支持 CSV、TSV、TXT、Excel (.xlsx / .xlsm) 和 ZIP", "CSV, TSV, TXT, Excel (.xlsx / .xlsm) and ZIP"),
             ) {
                 if (!importing) importPicker.launch(arrayOf("*/*"))
             }
             CardDivider()
-            ActionItem(Icons.Outlined.Archive, "归档账单", "查看、恢复或彻底删除已归档账单", onOpenArchive)
-            ActionItem(Icons.Outlined.Download, "导出账单 CSV", "导出本月或全部账单，可分享、可再导入") {
+            ActionItem(Icons.Outlined.Archive, language("归档账单", "Archived transactions"), language("查看、恢复或彻底删除已归档账单", "View, restore or permanently delete archived transactions"), onOpenArchive)
+            ActionItem(Icons.Outlined.Download, language("导出账单 CSV", "Export CSV"), language("导出本月或全部账单，可分享、可再导入", "Share or reimport transactions from this month or all time")) {
                 onExport()
             }
             CardDivider()
-            ActionItem(Icons.Outlined.SaveAlt, "完整备份（换机必用）", "账单 + 预算 + 周期规则 一个 JSON 全打包") {
+            ActionItem(Icons.Outlined.SaveAlt, language("完整备份（换机必用）", "Full backup"), language("账单 + 预算 + 周期规则 一个 JSON 全打包", "Save transactions, budgets and recurring rules in one JSON file")) {
                 scope.launch {
                     val uri = com.yang.jizhang.util.BackupHelper.exportFull(context)
                     if (uri != null) {
                         com.yang.jizhang.engine.BillExporter.share(context, uri, "application/json")
-                        android.widget.Toast.makeText(context, "完整备份已导出到 下载/Jizhang", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(context, language("完整备份已导出到 下载/Jizhang", "Full backup saved to Downloads/Jizhang"), android.widget.Toast.LENGTH_LONG).show()
                     } else {
-                        android.widget.Toast.makeText(context, "没有可备份的数据", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, language("没有可备份的数据", "Nothing to back up"), android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             }
             CardDivider()
-            ActionItem(Icons.Outlined.Restore, "恢复备份", "选择完整备份 JSON，幂等合并不产生重复") {
+            ActionItem(Icons.Outlined.Restore, language("恢复备份", "Restore backup"), language("选择完整备份 JSON，幂等合并不产生重复", "Merge a full JSON backup without duplicates")) {
                 restorePicker.launch(arrayOf("application/json", "text/json", "text/plain", "*/*"))
             }
             CardDivider()
             val learnerSize = remember { mutableIntStateOf(com.yang.jizhang.util.CategoryLearner.size(context)) }
             ActionItem(
                 Icons.Outlined.Psychology,
-                "重置智能分类",
-                "已学习 ${learnerSize.intValue} 条商户→分类映射，越用越准；重置后回到关键词规则",
+                language("重置智能分类", "Reset smart categories"),
+                language("已学习 ${learnerSize.intValue} 条商户→分类映射，越用越准；重置后回到关键词规则", "Learned ${learnerSize.intValue} merchant rules. Reset to the built-in rules."),
             ) {
                 com.yang.jizhang.util.CategoryLearner.clear(context)
                 learnerSize.intValue = 0
-                android.widget.Toast.makeText(context, "智能分类已重置", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, language("智能分类已重置", "Smart categories reset"), android.widget.Toast.LENGTH_SHORT).show()
             }
             CardDivider()
             ActionItem(
                 Icons.Outlined.Category,
-                "管理分类",
-                "内置 11 类 + 自定义 ${com.yang.jizhang.util.CategoryStore.custom(context).size} 类，可增删",
+                language("管理分类", "Manage categories"),
+                language("内置 11 类 + 自定义 ${com.yang.jizhang.util.CategoryStore.custom(context).size} 类，可增删", "11 built-in and ${com.yang.jizhang.util.CategoryStore.custom(context).size} custom categories"),
             ) {
                 showCategoryManage = true
             }
         }
 
         // ── 关于 ──
-        SettingsHeader("关于")
+        SettingsHeader(language("关于", "About"))
         SettingsCard {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
@@ -468,7 +560,7 @@ internal fun SettingsTab(
                     runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
                         .getOrDefault("")
                 }
-                Text("记账 v$versionName", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(language("记账 v$versionName", "Ledger v$versionName"), fontSize = 15.sp, modifier = Modifier.weight(1f))
             }
             CardDivider()
             Row(
@@ -483,9 +575,9 @@ internal fun SettingsTab(
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("数据仅存本机", fontSize = 15.sp)
+                    Text(language("数据仅存本机", "On-device storage"), fontSize = 15.sp)
                     Text(
-                        "无网络权限，不上传任何数据；导出 CSV 可自行备份",
+                        language("无网络权限，不上传任何数据；导出 CSV 可自行备份", "Your data stays on this device. Export a CSV to make a backup."),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -546,6 +638,7 @@ private fun ModeCell(
 
 @Composable
 private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val language = LocalVoyagerLanguage.current
     val theme = MaterialTheme.colorScheme
     val dark = LocalJzDark.current
     val preview = styleColors(style, dark, style.defaultAccent(dark))
@@ -563,7 +656,7 @@ private fun StyleCard(style: JzStyle, selected: Boolean, modifier: Modifier = Mo
         Spacer(Modifier.height(7.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                style.label,
+                language.appearance(style.label),
                 style = remember(style) { style.typography().titleSmall },
                 fontSize = 13.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
@@ -637,6 +730,7 @@ private fun PresetCard(
     seedColor: Color? = null,
     onClick: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(
@@ -657,7 +751,7 @@ private fun PresetCard(
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 if (preset == JzPreset.MATERIAL_YOU && android.os.Build.VERSION.SDK_INT < 31) {
                     android.widget.Toast.makeText(
-                        context, "动态取色需要 Android 12+，将使用深海配色", android.widget.Toast.LENGTH_SHORT,
+                        context, language("动态取色需要 Android 12+，将使用深海配色", "Dynamic colors require Android 12 or later. Deep Sea will be used."), android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
                 onClick()
@@ -705,13 +799,13 @@ private fun PresetCard(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            preset.label,
+            language.appearance(preset.label),
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (preset == JzPreset.MATERIAL_YOU) {
-            Text("跟系统", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(language("跟系统", "System"), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -757,6 +851,7 @@ private fun GuideItem(
     granted: Boolean,
     onClick: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     Row(
         Modifier
             .fillMaxWidth()
@@ -771,9 +866,9 @@ private fun GuideItem(
             Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (granted) {
-            Text("已开启", fontSize = 12.sp, color = incomeColor(), fontWeight = FontWeight.Medium)
+            Text(language("已开启", "On"), fontSize = 12.sp, color = incomeColor(), fontWeight = FontWeight.Medium)
         } else {
-            Text("去开启 ›", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+            Text(language("去开启 ›", "Enable ›"), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
         }
     }
 }

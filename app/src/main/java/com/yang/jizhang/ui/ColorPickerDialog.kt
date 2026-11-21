@@ -45,6 +45,7 @@ fun ColorPickerDialog(
     onPick: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val language = LocalVoyagerLanguage.current
     val palette = remember {
         listOf(
             0xFF5B5BD6, 0xFF7C4DFF, 0xFF9C27B0, 0xFFE24C7B, 0xFFFF5C8A, 0xFFFF7043,
@@ -58,7 +59,7 @@ fun ColorPickerDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("自定义颜色", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(language("自定义颜色", "Custom color"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 // 当前选中预览
@@ -74,7 +75,7 @@ fun ColorPickerDialog(
                     }
                     Spacer(Modifier.size(12.dp))
                     Text(
-                        "以这个颜色生成整套皮肤：深色提亮、浅色压深，自动配对比前景",
+                        language("以这个颜色生成整套皮肤：深色提亮、浅色压深，自动配对比前景", "Use this color to create light and dark variants with readable foreground colors."),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -116,11 +117,11 @@ fun ColorPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = { onPick(picked) }) {
-                Text("用这个颜色", fontWeight = FontWeight.SemiBold)
+                Text(language("用这个颜色", "Use color"), fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(language("取消", "Cancel")) }
         },
     )
 }
